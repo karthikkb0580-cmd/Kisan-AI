@@ -125,8 +125,8 @@ export default function Overlay() {
       {/* ── BACKGROUND FLOATING ELEMENTS (HOMEPAGE EXCLUSIVE) ── */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         {/* CSS Clouds */}
-        <div className="absolute top-[10vh] left-0 w-32 h-16 bg-white/10 rounded-full blur-md animate-drift-cloud-slow" />
-        <div className="absolute top-[25vh] left-0 w-44 h-20 bg-white/5 rounded-full blur-lg animate-drift-cloud-fast" style={{ animationDelay: '10s' }} />
+        <div className="absolute top-[10vh] left-0 w-32 h-16 bg-white/10 rounded-full blur-md animate-cloud-slow" />
+        <div className="absolute top-[25vh] left-0 w-44 h-20 bg-white/5 rounded-full blur-lg animate-cloud-fast" style={{ animationDelay: '10s' }} />
         
         {/* Flying plane */}
         <div className="absolute animate-fly-plane z-20 pointer-events-none">
@@ -158,8 +158,8 @@ export default function Overlay() {
               className="hero-title font-display font-extrabold text-4xl sm:text-6xl tracking-tight leading-[1.05] mb-6"
             >
               Investing in <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 via-indigo-500 to-green-400">
-                Farmvest.
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-400 via-emerald-400 to-blue-500">
+                Krishi AI.
               </span>
             </motion.h1>
 
@@ -462,8 +462,8 @@ export default function Overlay() {
           <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-1">
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-extrabold text-sm shadow-md">F</div>
-                <span className="font-display font-extrabold text-lg text-white">Farmvest</span>
+                <div className="w-8 h-8 rounded-lg bg-green-500 text-slate-900 flex items-center justify-center font-extrabold text-sm shadow-md">K</div>
+                <span className="font-display font-extrabold text-lg text-white">Krishi AI</span>
               </div>
               <p className="text-[11px] leading-relaxed text-gray-500">
                 Immersive fractional agritech investments globally. Secure crop telemetry at 60 FPS.
@@ -502,7 +502,7 @@ export default function Overlay() {
           </div>
           
           <div className="max-w-5xl mx-auto mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 text-[10px] text-gray-500">
-            <p>© 2026 Farmvest Inc. All rights reserved.</p>
+            <p>© 2026 Krishi AI Inc. All rights reserved.</p>
             <div className="flex gap-4">
               <a href="#" className="hover:text-blue-500">Twitter</a>
               <a href="#" className="hover:text-blue-500">LinkedIn</a>

@@ -23,11 +23,19 @@
   --animate-marquee-reverse: marquee-scroll 35s linear infinite reverse;
   --animate-pulse-glow: pulse-glow 3s ease-in-out infinite;
   --animate-bounce-soft: bounce-soft 2s ease-in-out infinite;
+  --animate-fly-plane: fly-plane 25s linear infinite;
 }
 
 /* ═══════════════════════════════════════════ */
 /*              KEYFRAME ANIMATIONS            */
 /* ═══════════════════════════════════════════ */
+
+@keyframes fly-plane {
+  0% { transform: translate(-10vw, 15vh) scale(0.6) rotate(2deg); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { transform: translate(110vw, 5vh) scale(1.1) rotate(-2deg); opacity: 0; }
+}
 
 @keyframes spin-windmill {
   from { transform: rotate(0deg); }

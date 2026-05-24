@@ -54,10 +54,10 @@ function App() {
           onClick={() => setView('home')}
         >
           <div className="w-10 h-10 rounded-xl bg-green-400 border-2.5 border-slate-900 flex items-center justify-center text-slate-900 font-black text-sm shadow-[2px_2px_0px_0px_#0F172A]">
-            F
+            K
           </div>
           <span className="font-display font-black text-2xl text-slate-900 tracking-tight">
-            Farmvest
+            Krishi AI
           </span>
         </div>
 
