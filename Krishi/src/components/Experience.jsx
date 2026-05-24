@@ -125,9 +125,9 @@ export default function Experience({ isDark, view }) {
 
     // Phone position
     if (phoneGroup.current) {
-      let px = localIsMobile ? 0 : THREE.MathUtils.lerp(2.2, 2.8, Math.sin(r*Math.PI))
+      let px = localIsMobile ? 0 : (viewport.width * 0.22)
       let py = localIsMobile ? cam.position.y + viewport.height * 0.18 : cam.position.y
-      let pScale = localIsMobile ? Math.min(viewport.width / 6.0, 0.42) : 0.78
+      let pScale = localIsMobile ? Math.min(viewport.width / 6.0, 0.42) : Math.min(viewport.width / 11.5, 0.78)
 
       if (view === 'dashboard') {
         // Shift phone to the right and scale down as a diagnostic holographic widget
@@ -204,12 +204,11 @@ export default function Experience({ isDark, view }) {
 
   return (
     <>
-      <ambientLight intensity={D ? 0.5 : 0.9} />
-      <directionalLight position={[8,12,8]} intensity={D ? 1.6 : 1.4} color="#efffef" castShadow />
-      <directionalLight position={[-8,4,-4]} intensity={D ? 0.5 : 0.4} color="#aef5c0" />
-      <pointLight position={[2,3,6]} intensity={D ? 1.4 : 1.0} color={D ? '#4ade80' : '#22c55e'} distance={14} decay={2} />
-      <pointLight position={[-2,-3,4]} intensity={D ? 0.3 : 0.5} color={D ? '#3b82f6' : '#60a5fa'} distance={10} decay={2} />
-      <Environment preset="city" />
+      <ambientLight intensity={D ? 0.7 : 1.2} />
+      <directionalLight position={[8,12,8]} intensity={D ? 2.2 : 2.0} color="#efffef" castShadow />
+      <directionalLight position={[-8,4,-4]} intensity={D ? 0.9 : 0.8} color="#aef5c0" />
+      <pointLight position={[2,3,6]} intensity={D ? 2.0 : 1.6} color={D ? '#4ade80' : '#22c55e'} distance={14} decay={2} />
+      <pointLight position={[-2,-3,4]} intensity={D ? 0.5 : 0.7} color={D ? '#3b82f6' : '#60a5fa'} distance={10} decay={2} />
 
       <group ref={phoneGroup} position={[2.5, 0, 0]}>
         <Float speed={1.2} floatIntensity={0.2} floatingRange={[-0.03, 0.03]}>

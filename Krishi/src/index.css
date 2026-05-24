@@ -543,3 +543,68 @@ h1, h2, h3, h4, h5, h6 {
   height: 10px;
   background-color: #10B981;
 }
+
+/* ═══════════════════════════════════════════ */
+/*        3D SCROLLABLE HOMEPAGE SECTIONS      */
+/* ═══════════════════════════════════════════ */
+
+.section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+  width: 100%;
+  padding-left: 4rem; /* Perfect match with sm:px-16 */
+  box-sizing: border-box;
+  position: relative;
+  z-index: 10;
+}
+
+.section-content {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 32rem; /* Max-w-lg equivalent */
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.6s ease;
+}
+
+/* On Desktop, make section contents float beautifully */
+@media (min-width: 1024px) {
+  .hero-section .section-content {
+    max-width: 36rem;
+    padding-left: 0; /* Keep it perfectly aligned to left grid line */
+  }
+}
+
+@media (max-width: 768px) {
+  .section {
+    justify-content: center;
+    padding-left: 1.5rem; /* Perfect match with px-6 */
+    padding-right: 1.5rem;
+    text-align: center;
+  }
+  
+  .section-content {
+    margin: 0 auto;
+    max-width: 100%;
+  }
+}
+
+/* No scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Glowing text effects */
+.text-glow-green {
+  text-shadow: 0 0 12px rgba(34, 197, 94, 0.2);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+}
+

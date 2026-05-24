@@ -140,7 +140,7 @@ export default function Overlay() {
       <div className="html-content relative z-10 w-full">
 
         {/* ── SECTION 1: HERO ── */}
-        <section className="section hero-section flex items-start justify-center h-screen px-6 sm:px-16">
+        <section className="section hero-section px-6 sm:px-16">
           <div className="section-content pointer-events-auto max-w-xl text-left">
             <motion.div 
               initial={{ opacity: 0, y: 30 }}
@@ -201,7 +201,7 @@ export default function Overlay() {
         </section>
 
         {/* ── SECTION 2: PORTFOLIO TRACKING ── */}
-        <section className="section feature-section flex items-start justify-center h-screen px-6 sm:px-16">
+        <section className="section feature-section px-6 sm:px-16">
           <div className="section-content pointer-events-auto glass-panel p-6 sm:p-8 rounded-3xl max-w-lg border border-white/5">
             <div className="flex items-center gap-2 text-xs text-blue-400 font-bold uppercase tracking-wider mb-4">
               <BarChart3 size={16} /> Portfolio Tracking
@@ -234,7 +234,7 @@ export default function Overlay() {
         </section>
 
         {/* ── SECTION 3: OPEN FOR INVESTMENT (CAROUSEL) ── */}
-        <section className="section feature-section flex flex-col items-start justify-center h-screen px-6 sm:px-16 overflow-hidden">
+        <section className="section feature-section px-6 sm:px-16 overflow-hidden">
           <div className="section-content pointer-events-auto w-full max-w-5xl">
             
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
@@ -288,7 +288,7 @@ export default function Overlay() {
         </section>
 
         {/* ── SECTION 4: WHY BACK FARMVEST (DARK SOIL) ── */}
-        <section className="section feature-section flex items-start justify-center h-screen px-6 sm:px-16">
+        <section className="section feature-section px-6 sm:px-16">
           <div className="section-content pointer-events-auto glass-panel p-6 sm:p-8 rounded-3xl max-w-lg border border-white/5 bg-[#0e120e]/80">
             <div className="flex items-center gap-2 text-xs text-[#22C55E] font-bold uppercase tracking-wider mb-4">
               <Shield size={16} /> Security Framework
@@ -324,7 +324,7 @@ export default function Overlay() {
         </section>
 
         {/* ── SECTION 5: LIVE INVESTMENT STATS ── */}
-        <section className="section feature-section flex items-start justify-center h-screen px-6 sm:px-16">
+        <section className="section feature-section px-6 sm:px-16">
           <div className="section-content pointer-events-auto glass-panel p-6 sm:p-8 rounded-3xl max-w-lg border border-white/5">
             <div className="flex items-center gap-2 text-xs text-indigo-400 font-bold uppercase tracking-wider mb-6">
               <Globe size={16} /> Live Platform Stats
@@ -427,7 +427,7 @@ export default function Overlay() {
         </section>
 
         {/* ── SECTION 7: CTA ── */}
-        <section className="section cta-section flex items-start justify-center h-screen px-6 sm:px-16">
+        <section className="section cta-section px-6 sm:px-16">
           <div className="section-content pointer-events-auto max-w-xl text-left">
             <span className="text-xs text-blue-500 font-bold uppercase tracking-widest mb-4 block">Get Started Today</span>
             <h2 className="font-display font-extrabold text-3xl sm:text-5xl tracking-tight leading-none text-white mb-6">
