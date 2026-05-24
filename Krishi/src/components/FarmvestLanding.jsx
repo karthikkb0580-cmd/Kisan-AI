@@ -950,7 +950,7 @@ export default function FarmvestLanding() {
                 <Sparkles size={14} className="text-yellow-300 stroke-[2.5px]" /> Limited slots available
               </div>
 
-              <h2 className="font-display font-extrabold text-3xl sm:text-4xl md:text-5xl text-white mb-6 leading-tight">
+              <h2 className="font-display font-black text-3xl sm:text-4xl md:text-5xl text-slate-900 mb-6 leading-tight">
                 Ready to Grow<br />Your Wealth?
               </h2>
               <p className="text-slate-800 font-bold text-base sm:text-lg max-w-lg mx-auto mb-10 leading-relaxed">

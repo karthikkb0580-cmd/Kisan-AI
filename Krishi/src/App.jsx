@@ -164,7 +164,6 @@ function App() {
             </div>
           </div>
         </div>
-      )}iv>
       )}
 
       {/* ═══ VIEW RENDERING ═══ */}
