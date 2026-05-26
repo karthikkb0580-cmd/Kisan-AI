@@ -5,7 +5,7 @@ import { useFarmvestStore } from '../../store/useFarmvestStore'
  * Tab-based navigation: Dashboard | Portfolio | Investments | Transactions | Settings
  */
 export default function Dashboard() {
-  const { user, farms, transactions, notifications, activeTab, setActiveTab, setView } = useFarmvestStore()
+  const { user, farms, transactions, notifications, activeTab, setActiveTab, setView, theme } = useFarmvestStore()
 
   const tabs = [
     { id: 'dashboard',    label: '📊 Overview'      },
@@ -19,10 +19,10 @@ export default function Dashboard() {
   const totalEarnings = myFarms.reduce((sum, f) => sum + f.earnings, 0)
 
   return (
-    <div className="min-h-screen bg-[var(--theme-bg)] transition-colors duration-300 pt-20">
+    <div className={`min-h-screen bg-[var(--theme-bg)] transition-colors duration-300 pt-20 ${theme === 'dark' ? 'dark-theme' : 'light-theme'}`}>
 
       {/* ── Sidebar + Main layout ── */}
-      <div className="flex max-w-7xl mx-auto px-4 sm:px-6 gap-6 py-8">
+      <div className="dashboard-scroll-wrap flex max-w-7xl mx-auto px-4 sm:px-6 gap-6 py-8">
 
         {/* Sidebar */}
         <aside className="hidden lg:flex flex-col w-60 shrink-0 gap-2">
@@ -249,6 +249,30 @@ export default function Dashboard() {
 
         </main>
       </div>
+
+      {/* ── MOBILE BOTTOM TAB BAR (< 1024px) ── */}
+      <nav className="dashboard-mobile-tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            id={`mobile-tab-${tab.id}`}
+            onClick={() => setActiveTab(tab.id)}
+            className={`mobile-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
+          >
+            <span className="mobile-tab-icon">{tab.label.split(' ')[0]}</span>
+            <span className="mobile-tab-label">{tab.label.split(' ').slice(1).join(' ')}</span>
+          </button>
+        ))}
+        <button
+          id="mobile-tab-logout"
+          onClick={() => setView('home')}
+          className="mobile-tab-btn"
+          style={{ color: '#ef4444' }}
+        >
+          <span className="mobile-tab-icon">🚪</span>
+          <span className="mobile-tab-label">Exit</span>
+        </button>
+      </nav>
     </div>
   )
 }

@@ -2994,3 +2994,385 @@ html.dark-theme .text-slate-600,
     font-size: 2rem;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/*   📱 PROFESSIONAL MOBILE UI — ALL RULES SCOPED TO MOBILE ONLY      */
+/*      Desktop layout (min-width: 769px) is COMPLETELY unaffected.   */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────
+   1. HEADER — Hide desktop controls on mobile
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Reduce header padding on mobile */
+  .header-pro {
+    padding: 0.9rem 1.25rem !important;
+  }
+
+  /* Hide desktop-only elements; hamburger handles mobile */
+  .header-actions > .header-icon-btn,
+  .header-actions > .header-lang-wrap,
+  .header-actions > .header-auth-group {
+    display: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   2. MOBILE MENU OVERLAY
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .header-mobile-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 13, 24, 0.5);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 49;
+    animation: mobile-overlay-in 0.22s ease both;
+  }
+
+  @keyframes mobile-overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
+
+/* ─────────────────────────────────────────────
+   3. MOBILE MENU PANEL — Slide in from right
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .header-mobile-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: min(300px, 82vw);
+    height: 100dvh;
+    background: #ffffff;
+    border-left: 3px solid #0f172a;
+    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    overflow-y: auto;
+    z-index: 50;
+    padding: 5rem 1.5rem 2.5rem 1.5rem;
+    box-sizing: border-box;
+    animation: mobile-panel-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .dark-theme .header-mobile-panel {
+    background: #0b132b;
+    border-left-color: #22c55e;
+    box-shadow: -12px 0 48px rgba(0, 0, 0, 0.55);
+  }
+
+  @keyframes mobile-panel-in {
+    from { transform: translateX(110%); opacity: 0; }
+    to   { transform: translateX(0);   opacity: 1; }
+  }
+
+  /* Section divider rows inside mobile panel */
+  .header-mobile-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 1.1rem 0;
+    border-bottom: 1.5px solid rgba(15, 23, 42, 0.09);
+  }
+
+  .dark-theme .header-mobile-row {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Theme toggle button inside the mobile panel */
+  .header-mobile-row .header-icon-btn {
+    display: inline-flex !important;
+    width: auto !important;
+    padding: 0 1rem !important;
+    gap: 0.5rem !important;
+    font-size: 0.82rem !important;
+    font-weight: 800 !important;
+    height: 2.5rem !important;
+    border-radius: 0.75rem !important;
+    white-space: nowrap;
+  }
+
+  /* Language chip buttons inside the mobile panel */
+  .header-mobile-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 0.65rem;
+    border: 2px solid #0f172a;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.78rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 2px 2px 0 0 #0f172a;
+    transition: all 0.18s ease;
+    user-select: none;
+  }
+
+  .dark-theme .header-mobile-lang {
+    background: #1e293b;
+    color: #f8fafc;
+    border-color: #f8fafc;
+    box-shadow: 2px 2px 0 0 #f8fafc;
+  }
+
+  .header-mobile-lang.active {
+    background: #22c55e;
+    color: #0f172a;
+    border-color: #0f172a;
+    box-shadow: 2px 2px 0 0 #0f172a;
+  }
+
+  .dark-theme .header-mobile-lang.active {
+    background: #10b981;
+    color: #0f172a;
+    border-color: #10b981;
+  }
+
+  /* Auth buttons at bottom of mobile panel */
+  .header-mobile-auth {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 1.5rem;
+    margin-top: 0.5rem;
+  }
+
+  .header-mobile-auth .header-btn {
+    width: 100% !important;
+    height: 3rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 0.85rem !important;
+    justify-content: center !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   4. HERO SECTION — Mobile scaling
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .hero-text-wrap {
+    padding: 0 1.25rem;
+    max-width: 100%;
+  }
+
+  .hero-title {
+    font-size: clamp(2.6rem, 11vw, 4rem) !important;
+    margin-bottom: 0.85rem;
+  }
+
+  .hero-eyebrow {
+    font-size: 0.65rem;
+    letter-spacing: 0.18em;
+    margin-bottom: 0.85rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.88rem;
+    line-height: 1.65;
+    margin-bottom: 1.75rem;
+  }
+
+  .hero-btn-primary,
+  .hero-btn-ghost {
+    padding: 0.8rem 1.5rem;
+    font-size: 0.78rem;
+  }
+
+  .hero-cta-row {
+    gap: 0.65rem;
+  }
+
+  .hero-scroll-cue {
+    bottom: 1.25rem;
+    font-size: 0.55rem;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   5. FEATURE SECTIONS — Stack vertically
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Override side-by-side layout */
+  .feature-section,
+  .feature-section.feature-flipped {
+    flex-direction: column !important;
+    padding: 1.75rem 1.1rem !important;
+    gap: 0 !important;
+    height: auto !important;
+    min-height: 100svh;
+    justify-content: center;
+    align-items: stretch;
+  }
+
+  /* Cards go full width */
+  .feat-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Text card: remove fixed heights */
+  .feat-card-info {
+    padding: 1.75rem !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: unset !important;
+  }
+
+  /* Hide feature video cards entirely on mobile */
+  .feat-card-video {
+    display: none !important;
+  }
+
+  /* Tag — slightly smaller */
+  .feat-tag {
+    font-size: 0.6rem;
+    padding: 0.25rem 0.75rem;
+    margin-bottom: 0.85rem;
+  }
+
+  /* Title scales with viewport */
+  .feat-title {
+    font-size: clamp(1.5rem, 5.5vw, 2rem) !important;
+    margin-bottom: 0.65rem;
+  }
+
+  /* Readable subtitle */
+  .feat-subtitle {
+    font-size: 0.82rem !important;
+    line-height: 1.6 !important;
+    margin-bottom: 1.25rem !important;
+  }
+
+  /* Stat number */
+  .feat-stat-num {
+    font-size: 2.2rem !important;
+  }
+
+  /* Satellite slide: no fixed heights */
+  #hero-satellite .feat-card {
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   6. SCROLL SNAP — Relax on mobile for tall content
+   ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .scroll3d-container {
+    scroll-snap-type: y proximity !important;
+  }
+
+  /* Feature + footer sections: auto height */
+  .snap-section:not(.hero-section) {
+    height: auto !important;
+    min-height: 100svh;
+  }
+
+  /* Hero stays fullscreen */
+  .snap-section.hero-section {
+    height: 100svh !important;
+    min-height: 100svh;
+  }
+
+  /* Footer snap section */
+  .snap-section.footer-section {
+    height: auto !important;
+    min-height: auto !important;
+  }
+
+  /* Footer body narrower padding */
+  .footer-body {
+    padding: 2.5rem 1.25rem 2rem 1.25rem !important;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   7. DASHBOARD — Mobile bottom tab bar
+   ───────────────────────────────────────────── */
+
+/* The tab bar element — hidden by default, shown on small screens */
+.dashboard-mobile-tabs {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: #ffffff;
+  border-top: 2px solid #0f172a;
+  box-shadow: 0 -4px 28px rgba(0, 0, 0, 0.09);
+  padding: 0.45rem 0.25rem env(safe-area-inset-bottom, 0.25rem);
+  justify-content: space-around;
+  align-items: center;
+}
+
+.dark-theme .dashboard-mobile-tabs {
+  background: #0b132b;
+  border-top-color: #22c55e;
+  box-shadow: 0 -4px 28px rgba(0, 0, 0, 0.45);
+}
+
+@media (max-width: 1023px) {
+  .dashboard-mobile-tabs {
+    display: flex;
+  }
+
+  /* Push dashboard content above the tab bar */
+  .dashboard-scroll-wrap {
+    padding-bottom: 5rem !important;
+  }
+}
+
+/* Each tab button */
+.mobile-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
+  padding: 0.35rem 0.6rem;
+  flex: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0.6rem;
+  transition: all 0.18s ease;
+  color: #64748b;
+  user-select: none;
+}
+
+.mobile-tab-btn.active {
+  color: #16a34a;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.dark-theme .mobile-tab-btn {
+  color: #94a3b8;
+}
+
+.dark-theme .mobile-tab-btn.active {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.mobile-tab-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.mobile-tab-label {
+  font-size: 0.5rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  line-height: 1;
+}
