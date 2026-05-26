@@ -4,7 +4,11 @@ export const useFarmvestStore = create((set, get) => ({
   // UI Theme & Routing
   theme: 'dark',
   view: 'home', // 'home' | 'dashboard' | 'login' | 'register'
+  activeHeroSection: 0,
+  setActiveHeroSection: (section) => set({ activeHeroSection: section }),
   activeTab: 'dashboard', // 'dashboard' | 'portfolio' | 'analytics' | 'investments' | 'farms' | 'transactions' | 'wallet' | 'settings'
+  language: 'en', // 'en' | 'hi' | 'pa' | 'te'
+  setLanguage: (lang) => set({ language: lang }),
   
   // User Profile
   user: {
@@ -147,9 +151,11 @@ export const useFarmvestStore = create((set, get) => ({
   toggleTheme: () => set((state) => {
     const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
     if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark-theme');
       document.documentElement.classList.remove('light-theme');
     } else {
       document.documentElement.classList.add('light-theme');
+      document.documentElement.classList.remove('dark-theme');
     }
     return { theme: nextTheme };
   }),
