@@ -1,19 +1,17 @@
-import { useEffect }           from 'react'
-import { useFarmvestStore }    from './store/useFarmvestStore'
+import { useEffect } from 'react'
+import { useFarmvestStore } from './store/useFarmvestStore'
 
 // Layout
-import Header                  from './components/layout/Header'
+import Header    from './components/layout/Header'
 
 // Pages / views
-import LandingPage             from './components/home/LandingPage'
-import GetStarted              from './components/auth/GetStarted'
-import Login                   from './components/auth/Login'
-import Dashboard               from './components/dashboard/Dashboard'
+import LandingPage from './components/home/LandingPage'
+import AuthModal   from './components/auth/AuthModal'
+import Dashboard   from './components/dashboard/Dashboard'
 
 /**
  * App — top-level router shell.
- * Reads `view` from global Zustand store and renders the matching page.
- * All layout-level concerns (Header, scroll reset) live here.
+ * Auth views are now rendered as a blurred modal overlay on the landing page.
  */
 function App() {
   const { view, setView, theme } = useFarmvestStore()
@@ -23,11 +21,11 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [view])
 
-  // Synchronize theme with DOM document element and body
+  // Synchronize theme with DOM
   useEffect(() => {
     const root = document.documentElement
     const body = document.body
-    
+
     if (theme === 'dark') {
       root.classList.add('dark-theme', 'dark')
       root.classList.remove('light-theme', 'light')
@@ -45,28 +43,28 @@ function App() {
     }
   }, [theme])
 
-  return (
-    <div className={view !== 'home' ? 'min-h-screen bg-[var(--theme-bg)] transition-colors duration-300' : ''}>
+  // Auth modal is shown when view is 'login' or 'get-started'
+  const showAuthModal = view === 'login' || view === 'get-started'
 
+  return (
+    <div>
       {/* ── Global navigation ── */}
       <Header />
 
-      {/* ── View router ── */}
-      {view === 'home'        && <LandingPage />}
+      {/* ── Dashboard ── */}
+      {view === 'dashboard' && <Dashboard />}
 
-      {view === 'get-started' && (
-        <div className="pt-20 min-h-screen">
-          <GetStarted setView={setView} theme={theme} />
-        </div>
+      {/* ── Landing page (always rendered unless in dashboard) ── */}
+      {view !== 'dashboard' && <LandingPage />}
+
+      {/* ── Auth modal overlay on landing page ── */}
+      {showAuthModal && (
+        <AuthModal
+          initialTab={view === 'get-started' ? 'register' : 'login'}
+          onClose={() => setView('home')}
+          onSuccess={(nextView) => setView(nextView)}
+        />
       )}
-
-      {view === 'login'       && (
-        <div className="pt-20 min-h-screen">
-          <Login setView={setView} theme={theme} />
-        </div>
-      )}
-
-      {view === 'dashboard'   && <Dashboard />}
     </div>
   )
 }
