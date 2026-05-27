@@ -2589,7 +2589,7 @@ html.dark-theme .text-slate-600,
 .footer-body {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 4rem 2rem 2rem 2rem;
+  padding: 1.5rem 2rem;
   box-sizing: border-box;
 }
 
@@ -2772,13 +2772,21 @@ html.dark-theme .text-slate-600,
 }
 
 .footer-bottom-bar {
-  border-top: 1px solid var(--footer-border);
-  padding-top: 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 0.75rem;
   color: var(--footer-text);
+}
+
+.footer-copy {
+  margin: 0;
+}
+
+.footer-credit {
+  margin: 0;
+  font-weight: 600;
+  color: #22c55e;
 }
 
 .footer-bottom-links {
