@@ -85,17 +85,23 @@ export default function NearbyMarkets() {
   const [markets, setMarkets] = useState([])
   const [bestMarket, setBestMarket] = useState(null)
   const [selectedCrop, setSelectedCrop] = useState('wheat')
+  const [nearbyOnly, setNearbyOnly] = useState(true)
 
   const CROPS = ['wheat', 'rice', 'cotton', 'maize', 'mustard']
 
   const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar fallback
+  const MAX_NEARBY_KM = 60 // Only show markets within this radius
 
   const loadMarkets = (pos) => {
-    const mkts = generateMarkets(pos.lat, pos.lng).map(m => ({
+    const all = generateMarkets(pos.lat, pos.lng).map(m => ({
       ...m,
       dist: kmDist(pos.lat, pos.lng, m.lat, m.lng),
     }))
+    // Filter to nearby markets only; fall back to all if none qualify
+    const nearby = all.filter(m => parseFloat(m.dist) <= MAX_NEARBY_KM)
+    const mkts = nearby.length >= 2 ? nearby : all
     setMarkets(mkts)
+    setNearbyOnly(nearby.length >= 2)
     // Best = highest price for selected crop
     const best = [...mkts].sort((a, b) => b[selectedCrop] - a[selectedCrop])[0]
     setBestMarket(best)
@@ -165,8 +171,15 @@ export default function NearbyMarkets() {
         <div className="db-alert yellow">{locationError}</div>
       )}
 
+      {/* Proximity notice */}
+      <div className={`db-alert ${nearbyOnly ? 'green' : 'yellow'}`} style={{ marginBottom: '0.5rem' }}>
+        {nearbyOnly
+          ? `📍 Showing ${markets.length} markets within 60 km of your location — sorted nearest first.`
+          : `🌐 No markets found within 60 km. Showing all ${markets.length} available markets.`}
+      </div>
+
       {/* Crop selector for route */}
-      <div className="nm-crop-row">
+      <div className="nm-crop-row" style={{ marginBottom: '1.5rem' }}>
         <span className="nm-crop-label">Show best market for:</span>
         <div className="nm-crop-chips">
           {CROPS.map(c => (
@@ -181,144 +194,167 @@ export default function NearbyMarkets() {
         </div>
       </div>
 
-      {/* Map */}
-      <div className="nm-map-wrap">
-        {userPos && (
-          <MapContainer
-            center={center}
-            zoom={11}
-            className="nm-map"
-            zoomControl={true}
-          >
-            <Recenter center={center} />
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+      {/* Split side-by-side layout */}
+      <div className="nm-side-by-side-container">
+        
+        {/* Left column: Map wrapper */}
+        <div className="nm-map-side">
+          <div className="nm-map-wrap">
+            {userPos && (
+              <MapContainer
+                center={center}
+                zoom={11}
+                className="nm-map"
+                zoomControl={true}
+                style={{ height: '480px' }}
+              >
+                <Recenter center={center} />
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
 
-            {/* User position */}
-            <Marker position={center} icon={userIcon}>
-              <Popup>
-                <div className="nm-popup">
-                  <strong>📍 Your Location</strong>
-                  <br />
-                  <small>{userPos.lat.toFixed(4)}, {userPos.lng.toFixed(4)}</small>
-                </div>
-              </Popup>
-            </Marker>
+                {/* User position */}
+                <Marker position={center} icon={userIcon}>
+                  <Popup>
+                    <div className="nm-popup">
+                      <strong>📍 Your Location</strong>
+                      <br />
+                      <small>{userPos.lat.toFixed(4)}, {userPos.lng.toFixed(4)}</small>
+                    </div>
+                  </Popup>
+                </Marker>
 
-            {/* Grey lines to all markets */}
-            {markets.map(m => (
-              <Polyline
-                key={`line-${m.id}`}
-                positions={[[userPos.lat, userPos.lng], [m.lat, m.lng]]}
-                pathOptions={{ color: '#94a3b8', weight: 1.5, dashArray: '5,5', opacity: 0.5 }}
-              />
-            ))}
+                {/* Grey lines to all markets */}
+                {markets.map(m => (
+                  <Polyline
+                    key={`line-${m.id}`}
+                    positions={[[userPos.lat, userPos.lng], [m.lat, m.lng]]}
+                    pathOptions={{ color: '#94a3b8', weight: 1.5, dashArray: '5,5', opacity: 0.5 }}
+                  />
+                ))}
 
-            {/* Green highlighted "most profitable" route */}
-            {bestMarket && (
-              <Polyline
-                positions={[
-                  [userPos.lat, userPos.lng],
-                  [(userPos.lat + bestMarket.lat) / 2 + 0.04, (userPos.lng + bestMarket.lng) / 2],
-                  [bestMarket.lat, bestMarket.lng]
-                ]}
-                pathOptions={{ color: '#22c55e', weight: 4, opacity: 0.9 }}
-              />
+                {/* Green highlighted "most profitable" route */}
+                {bestMarket && (
+                  <Polyline
+                    positions={[
+                      [userPos.lat, userPos.lng],
+                      [(userPos.lat + bestMarket.lat) / 2 + 0.04, (userPos.lng + bestMarket.lng) / 2],
+                      [bestMarket.lat, bestMarket.lng]
+                    ]}
+                    pathOptions={{ color: '#22c55e', weight: 4, opacity: 0.9 }}
+                  />
+                )}
+
+                {/* Market markers */}
+                {markets.map(m => (
+                  <Marker
+                    key={m.id}
+                    position={[m.lat, m.lng]}
+                    icon={marketIcon(profitColors[m.profit] || '#94a3b8', bestMarket?.id === m.id)}
+                  >
+                    <Popup>
+                      <div className="nm-popup">
+                        <strong>{m.name}</strong>
+                        <br />
+                        <small>🌾 Wheat: ₹{m.wheat}/qtl</small>
+                        <br />
+                        <small>🌾 {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}: ₹{m[selectedCrop]}/qtl</small>
+                        <br />
+                        <small>📏 {m.dist} km away</small>
+                        <br />
+                        <small style={{ color: m.open ? '#15803d' : '#dc2626' }}>
+                          {m.open ? '🟢 Open Now' : '🔴 Closed'}
+                        </small>
+                        {bestMarket?.id === m.id && (
+                          <div style={{ marginTop: 4, fontWeight: 700, color: '#15803d', fontSize: '0.75rem' }}>
+                            ⭐ Best price for {selectedCrop}!
+                          </div>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+              </MapContainer>
             )}
 
-            {/* Market markers */}
-            {markets.map(m => (
-              <Marker
-                key={m.id}
-                position={[m.lat, m.lng]}
-                icon={marketIcon(profitColors[m.profit] || '#94a3b8', bestMarket?.id === m.id)}
-              >
-                <Popup>
-                  <div className="nm-popup">
-                    <strong>{m.name}</strong>
-                    <br />
-                    <small>🌾 Wheat: ₹{m.wheat}/qtl</small>
-                    <br />
-                    <small>🌾 {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}: ₹{m[selectedCrop]}/qtl</small>
-                    <br />
-                    <small>📏 {m.dist} km away</small>
-                    <br />
-                    <small style={{ color: m.open ? '#15803d' : '#dc2626' }}>
-                      {m.open ? '🟢 Open Now' : '🔴 Closed'}
-                    </small>
-                    {bestMarket?.id === m.id && (
-                      <div style={{ marginTop: 4, fontWeight: 700, color: '#15803d', fontSize: '0.75rem' }}>
-                        ⭐ Best price for {selectedCrop}!
-                      </div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-        )}
-
-        {/* Legend */}
-        <div className="nm-legend">
-          <div className="nm-legend-item">
-            <span className="nm-legend-dot" style={{ background: '#22c55e' }} />
-            <span>Best Route ({selectedCrop})</span>
-          </div>
-          <div className="nm-legend-item">
-            <span className="nm-legend-dot" style={{ background: '#22c55e', width: 12, height: 12, border: '2px solid #0f172a' }} />
-            <span>Highest Profit Market</span>
-          </div>
-          <div className="nm-legend-item">
-            <span className="nm-legend-dot" style={{ background: '#3b82f6' }} />
-            <span>Your Location</span>
-          </div>
-          <div className="nm-legend-item">
-            <span className="nm-legend-dash" />
-            <span>Other Routes</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Best market highlight */}
-      {bestMarket && (
-        <div className="nm-best-card">
-          <div className="nm-best-left">
-            <span className="nm-best-tag">⭐ Most Profitable for {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}</span>
-            <h3 className="nm-best-name">{bestMarket.name}</h3>
-            <p className="nm-best-meta">{bestMarket.dist} km away · {bestMarket.open ? '🟢 Open Now' : '🔴 Closed Today'}</p>
-          </div>
-          <div className="nm-best-price">
-            <p className="nm-best-price-val">₹{bestMarket[selectedCrop]}</p>
-            <p className="nm-best-price-label">per quintal</p>
-          </div>
-        </div>
-      )}
-
-      {/* Market cards grid */}
-      <div className="nm-cards-grid">
-        {markets.map(m => (
-          <div key={m.id} className={`nm-market-card ${bestMarket?.id === m.id ? 'best' : ''}`}>
-            <div className="nm-card-top">
-              <div>
-                <h4 className="nm-card-name">{m.name}</h4>
-                <p className="nm-card-meta">{m.dist} km · {m.open ? '🟢 Open' : '🔴 Closed'}</p>
+            {/* Legend */}
+            <div className="nm-legend">
+              <div className="nm-legend-item">
+                <span className="nm-legend-dot" style={{ background: '#22c55e' }} />
+                <span>Best Route ({selectedCrop})</span>
               </div>
-              <span className="nm-card-badge" style={{ background: `${profitColors[m.profit]}20`, color: profitColors[m.profit] }}>
-                {m.profit}
-              </span>
+              <div className="nm-legend-item">
+                <span className="nm-legend-dot" style={{ background: '#22c55e', width: 10, height: 10, border: '2px solid #0f172a' }} />
+                <span>Highest Profit Market</span>
+              </div>
+              <div className="nm-legend-item">
+                <span className="nm-legend-dot" style={{ background: '#3b82f6' }} />
+                <span>Your Location</span>
+              </div>
             </div>
-            <div className="nm-card-prices">
-              {CROPS.map(c => (
-                <div key={c} className={`nm-price-chip ${c === selectedCrop ? 'highlight' : ''}`}>
-                  <span className="nm-price-crop">{c}</span>
-                  <span className="nm-price-val">₹{m[c]}</span>
+          </div>
+        </div>
+
+        {/* Right column: Distances list */}
+        <div className="nm-list-side">
+          {/* Best market highlight inside column */}
+          {bestMarket && (
+            <div className="nm-best-card" style={{ marginBottom: '0.75rem', width: '100%', boxSizing: 'border-box' }}>
+              <div className="nm-best-left">
+                <span className="nm-best-tag">⭐ Most Profitable for {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}</span>
+                <h3 className="nm-best-name" style={{ fontSize: '1rem' }}>{bestMarket.name}</h3>
+                <p className="nm-best-meta">{bestMarket.dist} km away · {bestMarket.open ? '🟢 Open' : '🔴 Closed'}</p>
+              </div>
+              <div className="nm-best-price">
+                <p className="nm-best-price-val" style={{ fontSize: '1.4rem' }}>₹{bestMarket[selectedCrop]}</p>
+                <p className="nm-best-price-label">per quintal</p>
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable list of markets with distance and prices */}
+          <div className="nm-markets-scroll-list">
+            {[...markets]
+              .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist))
+              .map(m => (
+                <div key={m.id} className={`nm-market-list-item ${bestMarket?.id === m.id ? 'best' : ''}`}>
+                  <div className="nm-item-header">
+                    <div className="nm-item-title-section">
+                      <h4 className="nm-item-name">{m.name}</h4>
+                      <div className="nm-item-distance-row">
+                        <span className="nm-distance-badge">📏 {m.dist} km away</span>
+                        <span className={`nm-open-badge ${m.open ? 'open' : 'closed'}`} style={{
+                          color: m.open ? '#22c55e' : '#ef4444',
+                          fontWeight: '800',
+                          fontSize: '0.65rem'
+                        }}>
+                          {m.open ? '🟢 Open' : '🔴 Closed'}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="nm-item-profit-badge" style={{ 
+                      background: `${profitColors[m.profit]}18`, 
+                      color: profitColors[m.profit],
+                      border: `1.5px solid ${profitColors[m.profit]}`
+                    }}>
+                      {m.profit}
+                    </span>
+                  </div>
+
+                  <div className="nm-item-prices">
+                    {CROPS.map(c => (
+                      <div key={c} className={`nm-item-price-chip ${c === selectedCrop ? 'highlight' : ''}`}>
+                        <span className="nm-item-crop">{c}</span>
+                        <span className="nm-item-val">₹{m[c]}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
-            </div>
           </div>
-        ))}
+        </div>
+
       </div>
     </div>
   )

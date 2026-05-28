@@ -1,8 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const MARKETS = [
   'Amritsar APMC', 'Ludhiana Grain', 'Jalandhar Mandi', 'Patiala Wholesale', 'Ferozepur Mandi', 'Bathinda Oil'
 ]
+
+const MARKET_COORDS = {
+  'Amritsar APMC': { lat: 31.634, lng: 74.872 },
+  'Ludhiana Grain': { lat: 30.901, lng: 75.857 },
+  'Jalandhar Mandi': { lat: 31.326, lng: 75.576 },
+  'Patiala Wholesale': { lat: 30.340, lng: 76.380 },
+  'Ferozepur Mandi': { lat: 30.924, lng: 74.622 },
+  'Bathinda Oil': { lat: 30.211, lng: 74.945 }
+}
 
 const CROPS = [
   {
@@ -75,23 +84,161 @@ const recommendConfig = {
 
 const riskColor = { Low: '#22c55e', Medium: '#f59e0b', High: '#ef4444' }
 
+const kmDist = (lat1, lng1, lat2, lng2) => {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2
+  return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1)
+}
+
+const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
+
 export default function MarketPrices() {
   const [activeCrop, setActiveCrop] = useState(null)
+  const [userPos, setUserPos] = useState(null)
+  const [locating, setLocating] = useState(false)
+  const [locationError, setLocationError] = useState('')
+  const [sortedMarkets, setSortedMarkets] = useState([])
+
+  const getLocation = () => {
+    setLocating(true)
+    setLocationError('')
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported by your browser.')
+      setLocating(false)
+      const pos = DEFAULT_POS
+      setUserPos(pos)
+      computeDistances(pos)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setUserPos(p)
+        computeDistances(p)
+        setLocating(false)
+      },
+      () => {
+        setLocationError('Location access denied — showing default region (Amritsar).')
+        const p = DEFAULT_POS
+        setUserPos(p)
+        computeDistances(p)
+        setLocating(false)
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    )
+  }
+
+  const computeDistances = (pos) => {
+    const list = MARKETS.map((name, idx) => {
+      const coords = MARKET_COORDS[name]
+      const dist = kmDist(pos.lat, pos.lng, coords.lat, coords.lng)
+      return {
+        name,
+        dist: parseFloat(dist),
+        idx
+      }
+    })
+    // Sort by distance (closest first)
+    list.sort((a, b) => a.dist - b.dist)
+    setSortedMarkets(list)
+  }
+
+  useEffect(() => {
+    getLocation()
+  }, [])
+
+  const orderedMarkets = sortedMarkets.length > 0 
+    ? sortedMarkets 
+    : MARKETS.map((m, i) => ({ name: m, dist: 0, idx: i }))
+
+  const nearestMarket = orderedMarkets[0]
 
   return (
     <div className="db-section">
-      <h1 className="db-page-title">💹 Market Prices</h1>
-      <p className="db-page-sub">Live crop price matrix across nearby markets with AI-driven sell timing recommendations.</p>
+      <div className="nm-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div>
+          <h1 className="db-page-title">💹 Market Prices</h1>
+          <p className="db-page-sub">Live crop price matrix ordered by distance to your current location.</p>
+        </div>
+        <button
+          className="nm-locate-btn"
+          onClick={getLocation}
+          disabled={locating}
+        >
+          {locating ? '📡 Locating…' : '📍 Refresh Location'}
+        </button>
+      </div>
+
+      {locationError && (
+        <div className="db-alert yellow" style={{ marginBottom: '1.5rem' }}>{locationError}</div>
+      )}
+
+      {/* ── 📍 NEAREST MARKET SUMMARY BLOCK ── */}
+      <div className="mp-nearest-card-outer" style={{ marginBottom: '1.5rem' }}>
+        <div className="mp-nearest-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <span className="mp-nearest-badge" style={{ background: '#22c55e', color: '#0f172a', fontWeight: '800', fontSize: '0.62rem', padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase', marginRight: '0.5rem' }}>📍 Closest Market Prices</span>
+            <h2 className="mp-nearest-title" style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.25rem', display: 'inline-block', margin: '0.25rem 0' }}>{nearestMarket.name}</h2>
+          </div>
+          <p className="mp-nearest-meta" style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: '700' }}>
+            📏 Just <strong style={{ color: '#22c55e' }}>{nearestMarket.dist} km</strong> away
+          </p>
+        </div>
+
+        <div className="mp-nearest-prices-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
+          {CROPS.map(c => {
+            const price = c.prices[nearestMarket.idx]
+            const max = Math.max(...c.prices)
+            const isBest = price === max
+            return (
+              <div key={c.name} className="mp-nearest-item" style={{ 
+                background: isBest ? '#f0fdf4' : '#f8fafc', 
+                border: isBest ? '2px solid #22c55e' : '2px solid #e2e8f0', 
+                borderRadius: '12px', 
+                padding: '0.75rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '0.2rem',
+                boxShadow: isBest ? '3px 3px 0 0 #22c55e' : 'none'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '1.2rem' }}>{c.emoji}</span>
+                  <span style={{ fontSize: '0.55rem', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>{c.name}</span>
+                </div>
+                <p style={{ margin: '0.25rem 0', fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: isBest ? '#15803d' : '#0f172a' }}>
+                  ₹{price.toLocaleString()}
+                </p>
+                <span style={{ fontSize: '0.6rem', color: isBest ? '#15803d' : '#64748b', fontWeight: '700' }}>
+                  {isBest ? '⭐ Best Price!' : `Max: ₹${max}`}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* ── PRICE MATRIX TABLE ── */}
-      <div className="mp-section-title">📊 Price Matrix — All Markets</div>
+      <div className="mp-section-title" style={{ fontWeight: '800', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+        📊 Live Price Matrix (Closest First 📍)
+      </div>
       <div className="mp-table-wrap">
         <table className="mp-table">
           <thead>
             <tr>
               <th className="mp-th mp-th-crop">Crop</th>
-              {MARKETS.map(m => (
-                <th key={m} className="mp-th">{m}</th>
+              {orderedMarkets.map((m, index) => (
+                <th key={m.name} className="mp-th" style={{ background: index === 0 ? 'rgba(34, 197, 94, 0.08)' : 'transparent' }}>
+                  <span style={{ display: 'block', fontWeight: '800' }}>{m.name}</span>
+                  <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>
+                    {index === 0 ? '📍 Nearest' : `📏 ${m.dist} km`}
+                  </span>
+                </th>
               ))}
               <th className="mp-th">7d Trend</th>
               <th className="mp-th">AI Signal</th>
@@ -112,15 +259,21 @@ export default function MarketPrices() {
                     <span className="mp-crop-emoji">{crop.emoji}</span>
                     <span className="mp-crop-name">{crop.name}</span>
                   </td>
-                  {crop.prices.map((p, i) => (
-                    <td
-                      key={i}
-                      className={`mp-td mp-price-cell ${p === maxPrice ? 'best' : p === minPrice ? 'worst' : ''}`}
-                    >
-                      <span>₹{p.toLocaleString()}</span>
-                      {p === maxPrice && <span className="mp-best-dot" title="Best Price" />}
-                    </td>
-                  ))}
+                  {orderedMarkets.map((m, index) => {
+                    const price = crop.prices[m.idx]
+                    const isBest = price === maxPrice
+                    const isWorst = price === minPrice
+                    return (
+                      <td
+                        key={m.name}
+                        className={`mp-td mp-price-cell ${isBest ? 'best' : isWorst ? 'worst' : ''}`}
+                        style={{ background: index === 0 ? 'rgba(34, 197, 94, 0.03)' : 'transparent' }}
+                      >
+                        <span>₹{price.toLocaleString()}</span>
+                        {isBest && <span className="mp-best-dot" title="Best Price" />}
+                      </td>
+                    )
+                  })}
                   <td className="mp-td">
                     <span className={`mp-trend ${crop.trendUp ? 'up' : 'down'}`}>
                       {crop.trendUp ? '▲' : '▼'} {crop.trend}
@@ -137,7 +290,7 @@ export default function MarketPrices() {
           </tbody>
         </table>
       </div>
-      <p className="mp-table-note">
+      <p className="mp-table-note" style={{ marginTop: '0.5rem' }}>
         🟢 Highlighted = best price for that crop · 🔴 Dimmed = lowest price · Click a row for detailed AI analysis
       </p>
 
@@ -147,7 +300,7 @@ export default function MarketPrices() {
         const rec  = recommendConfig[crop.recommend]
         const maxH = Math.max(...crop.history7d)
         return (
-          <div className="mp-detail-card">
+          <div className="mp-detail-card" style={{ marginTop: '1.5rem' }}>
             <div className="mp-detail-header">
               <div>
                 <span className="mp-detail-emoji">{crop.emoji}</span>
@@ -220,7 +373,9 @@ export default function MarketPrices() {
       })()}
 
       {/* ── AI SELL TIMING CARDS ── */}
-      <div className="mp-section-title">🤖 AI Sell Timing Recommendations</div>
+      <div className="mp-section-title" style={{ marginTop: '1.5rem', fontWeight: '800', fontSize: '0.9rem', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
+        🤖 AI Sell Timing Recommendations
+      </div>
       <div className="mp-timing-grid">
         {CROPS.map(crop => {
           const rec = recommendConfig[crop.recommend]

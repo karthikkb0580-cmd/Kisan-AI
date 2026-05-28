@@ -1,24 +1,64 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import MarketPrices from './MarketPrices'
+import CropScanner from './CropScanner'
+import CropSecurity from './CropSecurity'
+import FarmTraining from './FarmTraining'
 
-// Lazy-load map component (avoids SSR issues, faster initial load)
+// Lazy-load heavy map components
 const NearbyMarkets = lazy(() => import('./NearbyMarkets'))
+const TopographicalConditions = lazy(() => import('./TopographicalConditions'))
 
 const NAV_ITEMS = [
-  { id: 'dashboard',      icon: '📊', label: 'Dashboard'               },
-  { id: 'topo',           icon: '🗺️',  label: 'Topographical Conditions' },
-  { id: 'plant',          icon: '🌿', label: 'Plant Scanner'            },
-  { id: 'security',       icon: '🛡️',  label: 'Crop Security'           },
-  { id: 'government',     icon: '🏛️',  label: 'Government Supports'     },
-  { id: 'markets',        icon: '🛒', label: 'Nearby Markets'          },
-  { id: 'market-prices',  icon: '💹', label: 'Market Prices'           },
-  { id: 'history',        icon: '📅', label: 'Crop History'            },
+  { id: 'dashboard',     icon: '📊', label: 'Dashboard'               },
+  { id: 'topo',          icon: '🗺️',  label: 'Topographical Conditions' },
+  { id: 'crop',          icon: '🌿', label: 'Crop Scanner'            },
+  { id: 'security',      icon: '🛡️',  label: 'Crop Security'           },
+  { id: 'training',      icon: '🎓', label: 'Farm Training'           },
+  { id: 'government',    icon: '🏛️',  label: 'Government Supports'     },
+  { id: 'markets',       icon: '🛒', label: 'Nearby Markets'          },
+  { id: 'market-prices', icon: '💹', label: 'Market Prices'           },
+  { id: 'history',       icon: '📅', label: 'Crop History'            },
 ]
+
+const CROP_REMINDERS = [
+  { id: 1, crop: '🌾 Wheat', action: 'Apply 2nd irrigation', due: 'Today 06:00 AM', urgency: 'urgent',   note: 'Crown root initiation stage — do not delay.' },
+  { id: 2, crop: '🍚 Rice',  action: 'Spray Tricyclazole 75%', due: 'Tomorrow',    urgency: 'warning',  note: 'Blast disease risk high due to humid conditions.' },
+  { id: 3, crop: '🌻 Mustard', action: 'Boron foliar spray', due: 'In 3 days',    urgency: 'info',     note: '0.5% Borax solution at early flowering stage.' },
+  { id: 4, crop: '🪴 Cotton', action: 'Harvest 3rd picking', due: 'In 5 days',    urgency: 'info',     note: 'Check for fully opened bolls in Field B.' },
+  { id: 5, crop: '🐄 Cow',   action: 'FMD Vaccination due', due: 'In 7 days',    urgency: 'warning',  note: 'Schedule vet visit — 6-month booster cycle.' },
+]
+
+const urgencyStyle = {
+  urgent:  { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5', dot: '#dc2626' },
+  warning: { bg: '#fef9c3', color: '#b45309', border: '#fcd34d', dot: '#f59e0b' },
+  info:    { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
+}
+
+function MapLoading() {
+  return (
+    <div className="db-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '0.75rem', color: '#22c55e' }}>
+      <div className="db-map-spinner" style={{ borderTopColor: '#22c55e' }} />
+      <strong style={{ fontSize: '0.8rem' }}>Loading map…</strong>
+    </div>
+  )
+}
 
 export default function Dashboard() {
   const { user, setView, theme } = useFarmvestStore()
   const [activeTab, setActiveTab] = useState('dashboard')
+  const [time, setTime] = useState(new Date())
+  const [dismissedReminders, setDismissedReminders] = useState([])
+
+  // Real-time clock
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const fmt = (d) => d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+  const fmtDate = (d) => d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const activeReminders = CROP_REMINDERS.filter(r => !dismissedReminders.includes(r.id))
 
   return (
     <div className={`db-root ${theme === 'dark' ? 'dark-theme' : 'light-theme'}`}>
@@ -58,10 +98,22 @@ export default function Dashboard() {
         {/* ── 1. DASHBOARD ── */}
         {activeTab === 'dashboard' && (
           <div className="db-section">
-            <h1 className="db-page-title">Good morning, {user.name.split(' ')[0]} 👋</h1>
-            <p className="db-page-sub">Here's a real-time overview of your farm operations.</p>
+            {/* Live Clock Header */}
+            <div className="dash-clock-bar">
+              <div>
+                <h1 className="db-page-title" style={{ margin: 0 }}>
+                  Good {time.getHours() < 12 ? 'morning' : time.getHours() < 17 ? 'afternoon' : 'evening'}, {user.name.split(' ')[0]} 👋
+                </h1>
+                <p className="db-page-sub" style={{ margin: 0 }}>Here's a real-time overview of your farm operations.</p>
+              </div>
+              <div className="dash-clock-widget">
+                <span className="dash-clock-time">{fmt(time)}</span>
+                <span className="dash-clock-date">{fmtDate(time)}</span>
+              </div>
+            </div>
 
-            <div className="db-stats-grid">
+            {/* Stat Cards */}
+            <div className="db-stats-grid" style={{ marginTop: '1.25rem' }}>
               {[
                 { icon: '🌡️', label: 'Soil Temperature',  value: '24°C',     color: 'green'  },
                 { icon: '💧', label: 'Soil Moisture',     value: '67%',      color: 'blue'   },
@@ -75,6 +127,39 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+
+            {/* ── CROP REMINDERS PANEL ── */}
+            {activeReminders.length > 0 && (
+              <div className="dash-reminders-panel">
+                <div className="dash-reminders-header">
+                  <span className="dash-reminders-title">⏰ Upcoming Crop Treatments & Reminders</span>
+                  <span className="dash-reminders-count">{activeReminders.length} pending</span>
+                </div>
+                <div className="dash-reminders-list">
+                  {activeReminders.map(r => {
+                    const s = urgencyStyle[r.urgency]
+                    return (
+                      <div key={r.id} className="dash-reminder-item" style={{ background: s.bg, borderColor: s.border }}>
+                        <div className="dash-reminder-dot" style={{ background: s.dot }} />
+                        <div className="dash-reminder-body">
+                          <div className="dash-reminder-row">
+                            <span className="dash-reminder-crop">{r.crop}</span>
+                            <span className="dash-reminder-action">{r.action}</span>
+                            <span className="dash-reminder-due" style={{ color: s.color }}>📅 {r.due}</span>
+                          </div>
+                          <p className="dash-reminder-note" style={{ color: s.color }}>{r.note}</p>
+                        </div>
+                        <button
+                          className="dash-reminder-dismiss"
+                          onClick={() => setDismissedReminders(prev => [...prev, r.id])}
+                          title="Dismiss"
+                        >✕</button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="db-grid-2">
               <div className="db-card">
@@ -96,146 +181,21 @@ export default function Dashboard() {
 
         {/* ── 2. TOPOGRAPHICAL CONDITIONS ── */}
         {activeTab === 'topo' && (
-          <div className="db-section">
-            <h1 className="db-page-title">🗺️ Topographical Conditions</h1>
-            <p className="db-page-sub">Real-time satellite land surface analysis and soil topography.</p>
-
-            <div className="db-stats-grid">
-              {[
-                { icon: '⛰️', label: 'Elevation',      value: '342 m',  color: 'green'  },
-                { icon: '📐', label: 'Slope Gradient', value: '3.2°',   color: 'yellow' },
-                { icon: '🌊', label: 'Drainage Index', value: 'Good',   color: 'blue'   },
-                { icon: '🪨', label: 'Soil Type',      value: 'Loamy',  color: 'purple' },
-              ].map(s => (
-                <div key={s.label} className={`db-stat-card db-stat-${s.color}`}>
-                  <span className="db-stat-icon">{s.icon}</span>
-                  <p className="db-stat-value">{s.value}</p>
-                  <p className="db-stat-label">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="db-grid-2">
-              <div className="db-card">
-                <h2 className="db-card-title">🧪 Soil Chemical Profile</h2>
-                {[
-                  { name: 'Nitrogen (N)',   pct: 72, color: '#22c55e' },
-                  { name: 'Phosphorus (P)', pct: 54, color: '#3b82f6' },
-                  { name: 'Potassium (K)',  pct: 88, color: '#f59e0b' },
-                  { name: 'pH Level',      pct: 65, color: '#a855f7' },
-                ].map(n => (
-                  <div key={n.name} className="db-bar-row">
-                    <div className="db-bar-header"><span>{n.name}</span><span>{n.pct}%</span></div>
-                    <div className="db-bar-track">
-                      <div className="db-bar-fill" style={{ width: `${n.pct}%`, background: n.color }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="db-card">
-                <h2 className="db-card-title">📍 Terrain Analysis</h2>
-                <div className="db-info-row"><span>Land Surface</span><span>Semi-arid plateau</span></div>
-                <div className="db-info-row"><span>Water Retention</span><span>Moderate</span></div>
-                <div className="db-info-row"><span>Erosion Risk</span><span className="db-badge yellow">Medium</span></div>
-                <div className="db-info-row"><span>NDVI Score</span><span className="db-badge green">0.68 — Healthy</span></div>
-                <div className="db-info-row"><span>Crop Suitability</span><span className="db-badge green">96%</span></div>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<MapLoading />}>
+            <TopographicalConditions />
+          </Suspense>
         )}
 
-        {/* ── 3. PLANT SCANNER ── */}
-        {activeTab === 'plant' && (
-          <div className="db-section">
-            <h1 className="db-page-title">🌿 Plant Scanner</h1>
-            <p className="db-page-sub">AI-powered multi-spectral leaf and crop health analysis.</p>
-
-            <div className="db-stats-grid">
-              {[
-                { icon: '🍃', label: 'Chlorophyll',    value: 'High',      color: 'green'  },
-                { icon: '🦠', label: 'Disease Risk',   value: 'Low',       color: 'blue'   },
-                { icon: '🌾', label: 'Growth Stage',   value: 'Tillering', color: 'yellow' },
-                { icon: '📈', label: 'Yield Forecast', value: '+18.5%',    color: 'purple' },
-              ].map(s => (
-                <div key={s.label} className={`db-stat-card db-stat-${s.color}`}>
-                  <span className="db-stat-icon">{s.icon}</span>
-                  <p className="db-stat-value">{s.value}</p>
-                  <p className="db-stat-label">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="db-grid-2">
-              <div className="db-card">
-                <h2 className="db-card-title">🔬 Scan Results — Sector A</h2>
-                <div className="db-info-row"><span>Crop Type</span><span>Wheat (Triticum)</span></div>
-                <div className="db-info-row"><span>Leaf Area Index</span><span>3.8</span></div>
-                <div className="db-info-row"><span>Stem Health</span><span className="db-badge green">Normal</span></div>
-                <div className="db-info-row"><span>Root Depth Est.</span><span>42 cm</span></div>
-                <div className="db-info-row"><span>Water Stress</span><span className="db-badge yellow">Mild</span></div>
-                <div className="db-info-row"><span>Pest Probability</span><span className="db-badge green">2% — Negligible</span></div>
-              </div>
-              <div className="db-card">
-                <h2 className="db-card-title">💊 AI Recommendations</h2>
-                <div className="db-alert green">✅ Apply 20kg/acre urea supplement in Sector A within 48h</div>
-                <div className="db-alert yellow">⚠️ Monitor Sector B for early blight — re-scan in 72h</div>
-                <div className="db-alert blue">💧 Increase drip irrigation frequency to every 18 hours</div>
-                <div className="db-alert green">✅ Optimal window for top-dressing: 6–9 AM tomorrow</div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ── 3. CROP SCANNER ── */}
+        {activeTab === 'crop' && <CropScanner />}
 
         {/* ── 4. CROP SECURITY ── */}
-        {activeTab === 'security' && (
-          <div className="db-section">
-            <h1 className="db-page-title">🛡️ Crop Security</h1>
-            <p className="db-page-sub">Pest detection, disease surveillance, and weather threat monitoring.</p>
+        {activeTab === 'security' && <CropSecurity />}
 
-            <div className="db-stats-grid">
-              {[
-                { icon: '🐛', label: 'Pest Risk',       value: 'Low',    color: 'green'  },
-                { icon: '🍄', label: 'Fungal Risk',     value: 'Medium', color: 'yellow' },
-                { icon: '🌪️', label: 'Weather Threat', value: 'None',   color: 'blue'   },
-                { icon: '🔒', label: 'Security Score',  value: '91/100', color: 'purple' },
-              ].map(s => (
-                <div key={s.label} className={`db-stat-card db-stat-${s.color}`}>
-                  <span className="db-stat-icon">{s.icon}</span>
-                  <p className="db-stat-value">{s.value}</p>
-                  <p className="db-stat-label">{s.label}</p>
-                </div>
-              ))}
-            </div>
+        {/* ── 5. FARM TRAINING ── */}
+        {activeTab === 'training' && <FarmTraining />}
 
-            <div className="db-grid-2">
-              <div className="db-card">
-                <h2 className="db-card-title">🐞 Detected Threats</h2>
-                {[
-                  { name: 'Aphid Colonies',  level: 'Low',   badge: 'green'  },
-                  { name: 'Powdery Mildew',  level: 'Watch', badge: 'yellow' },
-                  { name: 'Stem Borer',      level: 'None',  badge: 'green'  },
-                  { name: 'Root Rot',        level: 'None',  badge: 'green'  },
-                  { name: 'Locust Activity', level: 'None',  badge: 'green'  },
-                ].map(t => (
-                  <div key={t.name} className="db-info-row">
-                    <span>{t.name}</span>
-                    <span className={`db-badge ${t.badge}`}>{t.level}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="db-card">
-                <h2 className="db-card-title">📋 Security Actions</h2>
-                <div className="db-alert yellow">⚠️ Spray neem-based pesticide in Row 12–18 by Friday</div>
-                <div className="db-alert blue">🌧️ Post-rain fungicide application recommended</div>
-                <div className="db-alert green">✅ Perimeter traps checked — no locust activity detected</div>
-                <div className="db-info-row" style={{ marginTop: '0.75rem' }}><span>Last Drone Sweep</span><span>Today 06:15 AM</span></div>
-                <div className="db-info-row"><span>Next Sweep</span><span>Today 06:15 PM</span></div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── 5. GOVERNMENT SUPPORTS ── */}
+        {/* ── 6. GOVERNMENT SUPPORTS ── */}
         {activeTab === 'government' && (
           <div className="db-section">
             <h1 className="db-page-title">🏛️ Government Supports</h1>
@@ -266,24 +226,17 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── 6. NEARBY MARKETS (with map) ── */}
+        {/* ── 7. NEARBY MARKETS ── */}
         {activeTab === 'markets' && (
-          <Suspense fallback={
-            <div className="db-section">
-              <div className="db-map-loading">
-                <div className="db-map-spinner" />
-                <p>Loading map…</p>
-              </div>
-            </div>
-          }>
+          <Suspense fallback={<MapLoading />}>
             <NearbyMarkets />
           </Suspense>
         )}
 
-        {/* ── 7. MARKET PRICES ── */}
+        {/* ── 8. MARKET PRICES ── */}
         {activeTab === 'market-prices' && <MarketPrices />}
 
-        {/* ── 8. CROP HISTORY ── */}
+        {/* ── 9. CROP HISTORY ── */}
         {activeTab === 'history' && (
           <div className="db-section">
             <h1 className="db-page-title">📅 Crop History</h1>
@@ -293,12 +246,8 @@ export default function Dashboard() {
               <table className="db-table">
                 <thead>
                   <tr>
-                    <th>Season</th>
-                    <th>Crop</th>
-                    <th>Area (acres)</th>
-                    <th>Yield (qtl)</th>
-                    <th>Revenue</th>
-                    <th>Status</th>
+                    <th>Season</th><th>Crop</th><th>Area (acres)</th>
+                    <th>Yield (qtl)</th><th>Revenue</th><th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
