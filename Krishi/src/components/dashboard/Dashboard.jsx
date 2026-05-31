@@ -277,21 +277,7 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* MOBILE BOTTOM BAR — icon-only with labels */}
-      <nav className="db-mobile-bar">
-        {NAV_ITEMS.slice(0,5).map(item => (
-          <button key={item.id} onClick={() => switchTab(item.id)}
-            className={`db-mob-btn ${activeTab === item.id ? 'active' : ''}`} title={item.label}>
-            <span className="db-mob-icon">{item.icon}</span>
-            <span className="db-mob-label">{item.label.split(' ')[0]}</span>
-          </button>
-        ))}
-        <button className={`db-mob-btn ${['government','markets','market-prices','history'].includes(activeTab)?'active':''}`}
-          onClick={() => { const o=['government','markets','market-prices','history']; setActiveTab(o[(o.indexOf(activeTab)+1)%o.length]) }}>
-          <span className="db-mob-icon">⋯</span>
-          <span className="db-mob-label">More</span>
-        </button>
-      </nav>
+      {/* No bottom bar — collapsible sidebar handles all mobile navigation */}
     </div>
   )
 }

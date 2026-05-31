@@ -147,25 +147,17 @@ export default function CropScanner({ onTreatmentSelected }) {
   const [selectedTreatment, setSelectedTreatment] = useState(null)
   const [treatmentSent, setTreatmentSent] = useState(false)
 
-  /* Logs */
+  /* Logs — with thumbnail support */
   const [logs, setLogs] = useState([
     {
-      id: 1,
-      date: '2026-05-27 15:40',
-      disease: 'Wheat Brown Rust (Puccinia recondita)',
-      severity: 'Medium ⚠️',
-      severityLevel: 'warning',
-      confidence: '94%',
-      treatment: 'Propiconazole 25% EC (Tilt)',
+      id: 1, date: '2026-05-27 15:40', disease: 'Wheat Brown Rust (Puccinia recondita)',
+      severity: 'Medium ⚠️', severityLevel: 'warning', confidence: '94%',
+      treatment: 'Propiconazole 25% EC (Tilt)', thumbnail: null,
     },
     {
-      id: 2,
-      date: '2026-05-26 09:12',
-      disease: 'Cotton Leaf Curl Virus (CLCuV)',
-      severity: 'Low 🌿',
-      severityLevel: 'info',
-      confidence: '89%',
-      treatment: 'Yellow sticky traps + 5% NSKE spray',
+      id: 2, date: '2026-05-26 09:12', disease: 'Cotton Leaf Curl Virus (CLCuV)',
+      severity: 'Low 🌿', severityLevel: 'info', confidence: '89%',
+      treatment: 'Yellow sticky traps + 5% NSKE spray', thumbnail: null,
     },
   ])
   const [expandedLog, setExpandedLog] = useState(null)
@@ -279,6 +271,11 @@ export default function CropScanner({ onTreatmentSelected }) {
     e.target.value = ''
   }
 
+  /* ── Auto-start camera on mount ── */
+  useEffect(() => {
+    startCamera()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ── Analysis ── */
   const runAnalysis = () => {
     const img = capturedImage || uploadedImage
@@ -306,6 +303,20 @@ export default function CropScanner({ onTreatmentSelected }) {
 
   const confirmTreatment = () => {
     if (!result || !selectedTreatment) return
+    const activeImage = capturedImage || uploadedImage
+    // Save to history with thumbnail
+    const logEntry = {
+      id: Date.now(),
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      disease: result.disease,
+      severity: result.severity,
+      severityLevel: result.severityLevel,
+      confidence: result.confidence,
+      treatment: selectedTreatment.name,
+      dosage: selectedTreatment.dosage,
+      thumbnail: activeImage || null,
+    }
+    setLogs(prev => [logEntry, ...prev])
     const newReminder = {
       id: Date.now(),
       date: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -602,6 +613,7 @@ export default function CropScanner({ onTreatmentSelected }) {
               <div key={log.id} className={`scanner-log-item ${isOpen ? 'open' : ''}`} style={{ borderColor: isOpen ? sc.border : '#e2e8f0' }}>
                 <button className="scanner-log-header" onClick={() => setExpandedLog(isOpen ? null : log.id)}>
                   <div className="scanner-log-left">
+                    {log.thumbnail && <img src={log.thumbnail} alt="" className="scanner-log-thumb" />}
                     <span className="scanner-log-dot" style={{ background: sc.color }} />
                     <div>
                       <p className="scanner-log-disease">{log.disease}</p>
@@ -624,6 +636,30 @@ export default function CropScanner({ onTreatmentSelected }) {
             )
           })}
         </div>
+      </div>
+
+      {/* ── NEAREST KRISHI KENDRA ── */}
+      <div className="scanner-kendra-card">
+        <h3 className="scanner-kendra-title">🏢 Nearest Krishi Vigyan Kendra</h3>
+        <div className="scanner-kendra-grid">
+          <div className="scanner-kendra-item">
+            <span className="scanner-kendra-label">📍 Address</span>
+            <strong>KVK Amritsar, PAU Regional Research Station, GT Road, Amritsar — 143001, Punjab</strong>
+          </div>
+          <div className="scanner-kendra-item">
+            <span className="scanner-kendra-label">📞 Helpline</span>
+            <strong><a href="tel:01832401960" style={{ color: 'inherit', textDecoration: 'underline' }}>0183-240-1960</a></strong>
+          </div>
+          <div className="scanner-kendra-item">
+            <span className="scanner-kendra-label">📧 Email</span>
+            <strong><a href="mailto:kvkamritsar@pau.edu" style={{ color: 'inherit', textDecoration: 'underline' }}>kvkamritsar@pau.edu</a></strong>
+          </div>
+          <div className="scanner-kendra-item">
+            <span className="scanner-kendra-label">🕐 Hours</span>
+            <strong>Mon–Sat: 9:00 AM – 5:00 PM</strong>
+          </div>
+        </div>
+        <p className="scanner-kendra-note">💡 Visit your nearest KVK for free soil testing, seed distribution, and expert agronomic consultation.</p>
       </div>
     </div>
   )

@@ -51,8 +51,10 @@
 .dash-completed-action{font-size:.58rem;color:var(--text3);margin:0}
 .dash-completed-undo{background:none;border:1px solid var(--border2);border-radius:4px;font-size:.52rem;padding:.12rem .3rem;cursor:pointer;color:var(--text3);font-weight:700}
 
-/* ═══ MOBILE SIDEBAR ═══ */
+/* ═══ MOBILE SIDEBAR + HIDE BOTTOM BAR ═══ */
 @media(max-width:768px){
-  .db-sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:40}
+  .db-sidebar{transform:translateX(-100%);transition:transform .25s ease;z-index:40;width:260px}
   .db-sidebar.open{transform:translateX(0)}
+  .db-mobile-bar{display:none!important}
+  .db-main{margin-left:0!important;padding:1rem 1rem 2rem!important;padding-top:calc(68px + 48px)!important}
 }
