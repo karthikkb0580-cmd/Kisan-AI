@@ -1,532 +1,628 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
+/* ─── Mock disease database ─────────────────────────────────────── */
 const MOCK_DISEASES = [
   {
+    id: 'wbr',
     disease: 'Wheat Brown Rust (Puccinia recondita)',
     severity: 'Medium ⚠️',
+    severityLevel: 'warning',
     confidence: '94%',
     affectedArea: '18.5%',
     diagnosis: 'Fungal infection causing red-brown pustules on leaves, disrupting photosynthesis and reducing yield.',
-    medications: {
-      chemical: 'Propiconazole 25% EC (e.g., Tilt) or Tebuconazole 250 EC.',
-      dosage: '1 ml per Litre of water (approx 200 ml per acre mixed in 200 Litres).',
-      organic: 'Spray diluted Neem Oil (1500 PPM) mixed with a mild soap solution weekly.',
-      precautions: 'Avoid sprinkler irrigation as standing moisture accelerates fungal spores. Spray in early morning or late evening.'
-    }
+    treatments: [
+      {
+        id: 't1',
+        label: '🧪 Chemical Treatment',
+        name: 'Propiconazole 25% EC (Tilt)',
+        dosage: '1 ml / Litre water — 200 ml/acre in 200 L',
+        color: '#15803d',
+        bg: '#f0fdf4',
+        border: '#22c55e',
+      },
+      {
+        id: 't2',
+        label: '🌿 Organic Remedy',
+        name: 'Neem Oil 1500 PPM + mild soap solution',
+        dosage: 'Spray weekly in early morning or evening',
+        color: '#854d0e',
+        bg: '#fef9c3',
+        border: '#eab308',
+      },
+    ],
+    precaution: 'Avoid sprinkler irrigation — moisture accelerates fungal spores. Spray in early morning or late evening.',
   },
   {
+    id: 'rb',
     disease: 'Rice Blast (Magnaporthe oryzae)',
     severity: 'High 🚨',
+    severityLevel: 'critical',
     confidence: '98%',
     affectedArea: '32.1%',
-    diagnosis: 'Highly destructive fungal pathogen causing spindle-shaped lesions with grey centers on leaves and neck rot.',
-    medications: {
-      chemical: 'Tricyclazole 75% WP (e.g., Beam) or Isoprothiolane 40% EC.',
-      dosage: '0.6 g per Litre of water (or 120 g per acre in 200 Litres of water).',
-      organic: 'Apply Pseudomonas fluorescens bio-formulation as foliar spray.',
-      precautions: 'Immediately reduce nitrogenous fertilizer application. Drain excess water and maintain shallow soil moisture.'
-    }
+    diagnosis: 'Highly destructive fungal pathogen causing spindle-shaped lesions with grey centres on leaves and neck rot.',
+    treatments: [
+      {
+        id: 't1',
+        label: '🧪 Chemical Treatment',
+        name: 'Tricyclazole 75% WP (Beam) or Isoprothiolane 40% EC',
+        dosage: '0.6 g/Litre — 120 g/acre in 200 L',
+        color: '#15803d',
+        bg: '#f0fdf4',
+        border: '#22c55e',
+      },
+      {
+        id: 't2',
+        label: '🌿 Bio-Organic Option',
+        name: 'Pseudomonas fluorescens bio-formulation',
+        dosage: 'As foliar spray per manufacturer label',
+        color: '#854d0e',
+        bg: '#fef9c3',
+        border: '#eab308',
+      },
+    ],
+    precaution: 'Immediately reduce nitrogenous fertilizer. Drain excess water and maintain shallow soil moisture.',
   },
   {
+    id: 'tlb',
     disease: 'Tomato Late Blight (Phytophthora infestans)',
     severity: 'High 🚨',
+    severityLevel: 'critical',
     confidence: '91%',
     affectedArea: '24.0%',
-    diagnosis: 'Water-soaked grey-green spots on leaves that turn brown-black, spreading rapidly under cool, humid conditions.',
-    medications: {
-      chemical: 'Metalaxyl 8% + Mancozeb 64% WP (e.g., Ridomil Gold) or Copper Oxychloride 50% WP.',
-      dosage: '2.5 g per Litre of water (approx 500 g per acre).',
-      organic: 'Foliar spray of Trichoderma harzianum or fresh Garlic extract solution.',
-      precautions: 'Prune lower leaves to enhance air circulation. Destroy severely infected plant matter immediately (do not compost).'
-    }
+    diagnosis: 'Water-soaked grey-green spots on leaves turning brown-black, spreading rapidly under cool, humid conditions.',
+    treatments: [
+      {
+        id: 't1',
+        label: '🧪 Chemical Treatment',
+        name: 'Metalaxyl 8% + Mancozeb 64% WP (Ridomil Gold)',
+        dosage: '2.5 g/Litre — 500 g/acre',
+        color: '#15803d',
+        bg: '#f0fdf4',
+        border: '#22c55e',
+      },
+      {
+        id: 't2',
+        label: '🌿 Biological Control',
+        name: 'Trichoderma harzianum or fresh Garlic extract',
+        dosage: 'Foliar spray weekly',
+        color: '#854d0e',
+        bg: '#fef9c3',
+        border: '#eab308',
+      },
+    ],
+    precaution: 'Prune lower leaves for air circulation. Destroy infected plant matter immediately — do NOT compost.',
   },
   {
+    id: 'clc',
     disease: 'Cotton Leaf Curl Virus (CLCuV)',
     severity: 'Low 🌿',
+    severityLevel: 'info',
     confidence: '89%',
     affectedArea: '6.2%',
     diagnosis: 'Viral pathogen transmitted by whiteflies, causing upward/downward curling of leaves and thickened veins.',
-    medications: {
-      chemical: 'No direct antiviral. Target vector (Whiteflies) using Acetamiprid 20% SP or Imidacloprid 17.8% SL.',
-      dosage: '0.5 ml Imidacloprid per Litre of water to control vector propagation.',
-      organic: 'Install yellow sticky traps (20 per acre) to trap whitefly vectors. Spray 5% Neem Seed Kernel Extract (NSKE).',
-      precautions: 'Uproot and burn highly deformed plants to prevent whiteflies from transferring the virus to healthy sectors.'
-    }
-  }
+    treatments: [
+      {
+        id: 't1',
+        label: '🧪 Vector Control',
+        name: 'Acetamiprid 20% SP or Imidacloprid 17.8% SL',
+        dosage: '0.5 ml Imidacloprid/Litre water',
+        color: '#15803d',
+        bg: '#f0fdf4',
+        border: '#22c55e',
+      },
+      {
+        id: 't2',
+        label: '🌿 Organic Vector Trap',
+        name: 'Yellow sticky traps (20/acre) + 5% NSKE spray',
+        dosage: 'Install traps; spray NSKE weekly',
+        color: '#854d0e',
+        bg: '#fef9c3',
+        border: '#eab308',
+      },
+    ],
+    precaution: 'Uproot and burn highly deformed plants to prevent whitefly spread to healthy sectors.',
+  },
 ]
 
-export default function CropScanner() {
-  const [streamActive, setStreamActive] = useState(false)
+const SEVERITY_COLORS = {
+  critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+  warning:  { bg: '#fef9c3', color: '#b45309', border: '#fcd34d' },
+  info:     { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+}
+
+/* ─── Component ─────────────────────────────────────────────────── */
+export default function CropScanner({ onTreatmentSelected }) {
+  /* Camera / image state */
+  const [cameraState, setCameraState] = useState('idle') // idle | requesting | active | error | simulated
+  const [cameraError, setCameraError] = useState('')
+  const [capturedImage, setCapturedImage] = useState(null)
   const [uploadedImage, setUploadedImage] = useState(null)
+
+  /* Analysis state */
   const [scanning, setScanning] = useState(false)
   const [scanStep, setScanStep] = useState(0)
   const [result, setResult] = useState(null)
+
+  /* Treatment selection state */
+  const [selectedTreatment, setSelectedTreatment] = useState(null)
+  const [treatmentSent, setTreatmentSent] = useState(false)
+
+  /* Logs */
   const [logs, setLogs] = useState([
     {
       id: 1,
       date: '2026-05-27 15:40',
-      fileName: 'wheat_field_sector_b.jpg',
       disease: 'Wheat Brown Rust (Puccinia recondita)',
       severity: 'Medium ⚠️',
+      severityLevel: 'warning',
       confidence: '94%',
-      medications: {
-        chemical: 'Propiconazole 25% EC (e.g., Tilt) or Tebuconazole 250 EC.',
-        dosage: '1 ml per Litre of water.',
-        organic: 'Spray diluted Neem Oil (1500 PPM) weekly.',
-        precautions: 'Avoid sprinkler irrigation. Spray in early morning.'
-      }
+      treatment: 'Propiconazole 25% EC (Tilt)',
     },
     {
       id: 2,
       date: '2026-05-26 09:12',
-      fileName: 'captured_cotton_leaf.png',
       disease: 'Cotton Leaf Curl Virus (CLCuV)',
       severity: 'Low 🌿',
+      severityLevel: 'info',
       confidence: '89%',
-      medications: {
-        chemical: 'Control whiteflies using Acetamiprid 20% SP or Imidacloprid 17.8% SL.',
-        dosage: '0.5 ml per Litre of water.',
-        organic: 'Install yellow sticky traps (20 per acre). Spray 5% NSKE.',
-        precautions: 'Uproot highly deformed plants.'
-      }
-    }
+      treatment: 'Yellow sticky traps + 5% NSKE spray',
+    },
   ])
-  const [selectedLog, setSelectedLog] = useState(null)
-  const [hasRealStream, setHasRealStream] = useState(false)
+  const [expandedLog, setExpandedLog] = useState(null)
 
   const videoRef = useRef(null)
+  const streamRef = useRef(null)
   const fileInputRef = useRef(null)
+  const canvasRef = useRef(null)
 
-  // Start webcam
-  const startCamera = async () => {
-    setUploadedImage(null)
-    setResult(null)
-    setHasRealStream(false)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        setStreamActive(true)
-        setHasRealStream(true)
-      }
-    } catch (err) {
-      console.warn("Webcam not available, launching simulated camera viewport.", err)
-      setStreamActive(true)
-      setHasRealStream(false)
+  /* ── Camera helpers ── */
+  const stopStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
     }
-  }
-
-  // Stop webcam
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = videoRef.current.srcObject.getTracks()
-      tracks.forEach(track => track.stop())
-    }
-    setStreamActive(false)
-    setHasRealStream(false)
-  }
-
-  useEffect(() => {
-    return () => stopCamera()
+    if (videoRef.current) videoRef.current.srcObject = null
   }, [])
 
-  // Handle file select
+  const startCamera = useCallback(async () => {
+    setCameraError('')
+    setCameraState('requesting')
+    setCapturedImage(null)
+    setUploadedImage(null)
+    setResult(null)
+    setSelectedTreatment(null)
+    setTreatmentSent(false)
+
+    // Check if mediaDevices API exists
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraState('simulated')
+      setCameraError('Camera API not available in this browser/environment. Simulated viewport activated.')
+      return
+    }
+
+    try {
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        }
+      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play().catch(() => {})
+        }
+      }
+      setCameraState('active')
+    } catch (err) {
+      console.warn('Camera error:', err)
+      let msg = 'Camera access denied or unavailable.'
+      if (err.name === 'NotAllowedError') msg = 'Camera permission denied. Please allow camera access in your browser settings.'
+      else if (err.name === 'NotFoundError') msg = 'No camera device found on this device.'
+      else if (err.name === 'NotReadableError') msg = 'Camera is in use by another application.'
+      setCameraError(msg + ' — Simulated viewport activated.')
+      setCameraState('simulated')
+    }
+  }, [])
+
+  const stopCamera = useCallback(() => {
+    stopStream()
+    setCameraState('idle')
+    setCameraError('')
+  }, [stopStream])
+
+  const captureFrame = useCallback(() => {
+    if (cameraState === 'active' && videoRef.current) {
+      const video = videoRef.current
+      const canvas = canvasRef.current || document.createElement('canvas')
+      canvas.width = video.videoWidth || 640
+      canvas.height = video.videoHeight || 480
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(video, 0, 0)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+      setCapturedImage(dataUrl)
+      stopStream()
+      setCameraState('captured')
+    } else {
+      // Simulated capture
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+        <rect width="400" height="300" fill="#0b1a10"/>
+        <ellipse cx="200" cy="150" rx="120" ry="90" fill="#1a4d2e"/>
+        <path d="M200 60 C160 120 120 150 200 240 C280 150 240 120 200 60Z" fill="#22c55e" opacity="0.8"/>
+        <circle cx="180" cy="140" r="8" fill="#f59e0b" opacity="0.9"/>
+        <circle cx="215" cy="155" r="6" fill="#f59e0b" opacity="0.7"/>
+        <circle cx="200" cy="130" r="5" fill="#ef4444" opacity="0.8"/>
+        <text x="200" y="285" fill="#22c55e" font-size="11" text-anchor="middle" font-weight="bold">SIMULATED LEAF SAMPLE</text>
+      </svg>`
+      setCapturedImage('data:image/svg+xml;utf8,' + encodeURIComponent(svg))
+      setCameraState('captured')
+    }
+  }, [cameraState, stopStream])
+
+  /* ── File upload ── */
   const handleFileChange = (e) => {
     const file = e.target.files[0]
-    if (file) {
-      stopCamera()
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setUploadedImage(event.target.result)
-        setResult(null)
-      }
-      reader.readAsDataURL(file)
+    if (!file) return
+    stopCamera()
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      setUploadedImage(ev.target.result)
+      setCapturedImage(null)
+      setResult(null)
+      setSelectedTreatment(null)
+      setTreatmentSent(false)
     }
+    reader.readAsDataURL(file)
+    e.target.value = ''
   }
 
-  // Trigger analysis
+  /* ── Analysis ── */
   const runAnalysis = () => {
-    if (!uploadedImage && !streamActive) return
-    
+    const img = capturedImage || uploadedImage
+    if (!img) return
     setScanning(true)
     setScanStep(1)
     setResult(null)
+    setSelectedTreatment(null)
+    setTreatmentSent(false)
 
-    // Animated scan loading sequences
-    setTimeout(() => setScanStep(2), 800)
-    setTimeout(() => setScanStep(3), 1600)
+    setTimeout(() => setScanStep(2), 900)
+    setTimeout(() => setScanStep(3), 1800)
     setTimeout(() => {
-      // Pick random mock disease
-      const mockIndex = Math.floor(Math.random() * MOCK_DISEASES.length)
-      const selected = MOCK_DISEASES[mockIndex]
-      
-      const newLog = {
-        id: Date.now(),
-        date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        fileName: uploadedImage ? 'uploaded_leaf_sample.jpg' : 'live_camera_capture.png',
-        disease: selected.disease,
-        severity: selected.severity,
-        confidence: selected.confidence,
-        medications: selected.medications
-      }
-
-      setLogs(prev => [newLog, ...prev])
+      const selected = MOCK_DISEASES[Math.floor(Math.random() * MOCK_DISEASES.length)]
       setResult(selected)
       setScanning(false)
       setScanStep(0)
-      stopCamera()
-    }, 2500)
+    }, 2700)
   }
 
-  const handleCapture = () => {
-    // Simulate capturing frame
-    setUploadedImage('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 100 100"><rect width="100" height="100" fill="%23152d24"/><path d="M50 15 C35 35 15 50 50 85 C85 50 65 35 50 15 Z" fill="%2322c55e"/><circle cx="50" cy="45" r="3" fill="%23f59e0b"/><circle cx="42" cy="55" r="2" fill="%23f59e0b"/><circle cx="58" cy="52" r="2.5" fill="%23f59e0b"/></svg>')
-    stopCamera()
+  /* ── Select treatment & send to dashboard ── */
+  const handleSelectTreatment = (treatment) => {
+    setSelectedTreatment(treatment)
   }
+
+  const confirmTreatment = () => {
+    if (!result || !selectedTreatment) return
+    const newReminder = {
+      id: Date.now(),
+      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      disease: result.disease,
+      severity: result.severity,
+      severityLevel: result.severityLevel,
+      confidence: result.confidence,
+      treatment: selectedTreatment.name,
+      treatmentLabel: selectedTreatment.label,
+      dosage: selectedTreatment.dosage,
+      status: 'pending', // pending | done | skipped
+    }
+    setLogs(prev => [{ ...newReminder, id: newReminder.id }, ...prev])
+    if (onTreatmentSelected) onTreatmentSelected(newReminder)
+    setTreatmentSent(true)
+  }
+
+  const resetScanner = () => {
+    stopCamera()
+    setCapturedImage(null)
+    setUploadedImage(null)
+    setResult(null)
+    setSelectedTreatment(null)
+    setTreatmentSent(false)
+    setScanning(false)
+    setScanStep(0)
+  }
+
+  useEffect(() => () => stopStream(), [stopStream])
+
+  const activeImage = capturedImage || uploadedImage
+  const sevStyle = result ? SEVERITY_COLORS[result.severityLevel] || SEVERITY_COLORS.info : null
 
   return (
-    <div className="db-section">
-      <h1 className="db-page-title">🌿 Crop Scanner</h1>
-      <p className="db-page-sub">Deploy multi-spectral computer vision to instantly diagnose leaf diseases and access target medication protocols.</p>
+    <div className="db-section scanner-section">
+      <div className="scanner-page-header">
+        <div>
+          <h1 className="db-page-title">🌿 Crop Scanner</h1>
+          <p className="db-page-sub">Deploy AI computer vision to instantly diagnose leaf diseases and access treatment protocols.</p>
+        </div>
+        {(activeImage || result) && (
+          <button className="scanner-reset-btn" onClick={resetScanner} title="Reset Scanner">
+            🔄 New Scan
+          </button>
+        )}
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        
-        {/* Left Side: Scanner viewport & upload options */}
-        <div className="db-card" style={{ border: '3px solid #0f172a', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white', boxShadow: '5px 5px 0 0 #0f172a' }}>
-          <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            📷 AI Diagnostic Viewport
-          </h2>
+      {/* ── STEP INDICATOR ── */}
+      <div className="scanner-steps">
+        {['Capture / Upload', 'AI Analysis', 'Select Treatment', 'Dashboard'].map((s, i) => {
+          const step = i + 1
+          const done = (step === 1 && activeImage) || (step === 2 && result) || (step === 3 && treatmentSent) || (step === 4 && treatmentSent)
+          const active = (step === 1 && !activeImage && !result) || (step === 2 && activeImage && !result) || (step === 3 && result && !treatmentSent)
+          return (
+            <div key={s} className={`scanner-step ${done ? 'done' : active ? 'active' : ''}`}>
+              <div className="scanner-step-dot">{done ? '✓' : step}</div>
+              <span className="scanner-step-label">{s}</span>
+              {i < 3 && <div className="scanner-step-line" />}
+            </div>
+          )
+        })}
+      </div>
 
-          <div style={{ position: 'relative', width: '100%', height: '280px', background: '#07111f', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #0f172a', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            
-            {/* 1. Live stream (camera mode) */}
-            {streamActive && !uploadedImage && (
-              <>
-                {hasRealStream ? (
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#0b1329', position: 'relative' }}>
-                    <span style={{ fontSize: '3rem', animation: 'pulse 2s infinite' }}>🍃</span>
-                    <p style={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: '800', marginTop: '0.5rem', marginInline: '1rem', textAlign: 'center' }}>SIMULATED VIEWPORT — TARGET ACQUIRED</p>
-                    <p style={{ fontSize: '0.58rem', color: '#64748b' }}>Press "Capture Sample" to simulate capture</p>
-                  </div>
-                )}
-                
-                {/* Simulated viewfinder overlay */}
-                <div style={{ position: 'absolute', border: '3px solid #22c55e', width: '200px', height: '200px', borderRadius: '16px', pointerEvents: 'none', opacity: 0.65 }} />
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '4px', background: 'linear-gradient(90deg, transparent, #22c55e, transparent)', animation: 'shimmer 2s linear infinite' }} />
-                <span style={{ position: 'absolute', bottom: '0.5rem', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.6rem', fontWeight: '700' }}>📡 CAMERA ACTIVE</span>
-              </>
-            )}
+      {/* ── MAIN PANEL ── */}
+      <div className="scanner-main-grid">
 
-            {/* 2. Uploaded image preview */}
-            {uploadedImage && (
-              <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <img src={uploadedImage} alt="Crop sample" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                {scanning && (
-                  <div style={{ 
-                    position: 'absolute', 
-                    width: '100%', 
-                    height: '6px', 
-                    background: '#22c55e', 
-                    boxShadow: '0 0 12px #22c55e', 
-                    top: '0%', 
-                    left: 0, 
-                    animation: 'float-gentle 1.8s ease-in-out infinite' 
-                  }} />
-                )}
+        {/* ── LEFT: Viewport ── */}
+        <div className="scanner-viewport-card">
+          <h2 className="scanner-card-title">📷 AI Diagnostic Viewport</h2>
+
+          {/* Camera error banner */}
+          {cameraError && (
+            <div className="scanner-cam-error">
+              <span>⚠️</span>
+              <span>{cameraError}</span>
+            </div>
+          )}
+
+          {/* Viewport */}
+          <div className="scanner-viewport">
+
+            {/* Idle state */}
+            {cameraState === 'idle' && !activeImage && (
+              <div className="scanner-empty-state">
+                <span className="scanner-empty-icon">🍃</span>
+                <p className="scanner-empty-title">No Image Selected</p>
+                <p className="scanner-empty-sub">Launch live camera or upload a crop leaf image below.</p>
               </div>
             )}
 
-            {/* 3. Empty State (No camera or upload) */}
-            {!streamActive && !uploadedImage && (
-              <div style={{ textAlign: 'center', color: '#64748b', padding: '1rem' }}>
-                <span style={{ fontSize: '2.5rem', display: 'block', marginBottom: '0.5rem' }}>🍃</span>
-                <p style={{ fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', margin: 0 }}>No Image Selected</p>
-                <p style={{ fontSize: '0.65rem', color: '#475569', marginTop: '0.25rem' }}>Initiate live camera scanner or upload a crop leaf image file below.</p>
+            {/* Requesting permissions */}
+            {cameraState === 'requesting' && (
+              <div className="scanner-empty-state">
+                <div className="db-map-spinner" style={{ borderTopColor: '#22c55e' }} />
+                <p className="scanner-empty-title" style={{ color: '#22c55e' }}>Requesting camera access…</p>
+                <p className="scanner-empty-sub">Please allow camera permission in your browser.</p>
+              </div>
+            )}
+
+            {/* Live video */}
+            {cameraState === 'active' && (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="scanner-video"
+                />
+                <div className="scanner-viewfinder" />
+                <div className="scanner-scan-line" />
+                <span className="scanner-live-badge">📡 LIVE</span>
+              </>
+            )}
+
+            {/* Simulated viewport */}
+            {cameraState === 'simulated' && (
+              <div className="scanner-simulated">
+                <span style={{ fontSize: '3.5rem', animation: 'pulse 2s infinite' }}>🍃</span>
+                <p className="scanner-sim-label">SIMULATED VIEWPORT — TARGET ACQUIRED</p>
+                <p className="scanner-sim-sub">Press "Capture Sample" to proceed</p>
+                <div className="scanner-viewfinder scanner-viewfinder--sim" />
+                <div className="scanner-scan-line" />
+              </div>
+            )}
+
+            {/* Captured / uploaded image */}
+            {activeImage && cameraState !== 'active' && (
+              <div className="scanner-img-wrap">
+                <img src={activeImage} alt="Crop sample" className="scanner-img" />
+                {scanning && <div className="scanner-scan-beam" />}
               </div>
             )}
 
             {/* Scanning overlay */}
             {scanning && (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(7, 17, 31, 0.85)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: '#22c55e', gap: '0.5rem', padding: '1rem', zIndex: 10 }}>
-                <div className="db-map-spinner" style={{ borderTopColor: '#22c55e' }} />
-                <p style={{ fontSize: '0.75rem', fontWeight: '800', margin: 0 }}>
-                  {scanStep === 1 ? '🧬 Fragmenting leaf structures…' : 
-                   scanStep === 2 ? '🦠 Scanning chemical profiles…' : 
-                   '🤖 Running neural diagnosis…'}
+              <div className="scanner-overlay">
+                <div className="db-map-spinner" style={{ borderTopColor: '#22c55e', width: '2.5rem', height: '2.5rem' }} />
+                <p className="scanner-overlay-text">
+                  {scanStep === 1 ? '🧬 Fragmenting leaf structures…' : scanStep === 2 ? '🦠 Scanning chemical profiles…' : '🤖 Running neural diagnosis…'}
                 </p>
-                <div style={{ width: '120px', height: '4px', background: '#111b2d', borderRadius: '99px', overflow: 'hidden', marginTop: '0.25rem' }}>
-                  <div style={{ height: '100%', background: '#22c55e', width: scanStep === 1 ? '33%' : scanStep === 2 ? '66%' : '95%', transition: 'width 0.8s ease' }} />
+                <div className="scanner-progress-bar">
+                  <div className="scanner-progress-fill" style={{ width: `${scanStep === 1 ? 33 : scanStep === 2 ? 66 : 95}%` }} />
                 </div>
               </div>
             )}
           </div>
 
+          {/* Canvas for capture (hidden) */}
+          <canvas ref={canvasRef} style={{ display: 'none' }} />
+
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {!streamActive ? (
-              <button 
-                onClick={startCamera} 
-                className="btn-magnetic" 
-                style={{ 
-                  flex: 1, 
-                  background: '#22c55e', 
-                  color: '#0f172a', 
-                  fontWeight: '800', 
-                  fontSize: '0.75rem', 
-                  padding: '0.6rem', 
-                  borderRadius: '10px',
-                  cursor: 'pointer' 
-                }}
-              >
-                📸 Launch Live Camera
+          <div className="scanner-actions">
+            {cameraState === 'idle' && (
+              <button className="scanner-btn scanner-btn--primary" onClick={startCamera}>
+                📸 Launch Camera
               </button>
-            ) : (
+            )}
+            {(cameraState === 'active' || cameraState === 'simulated') && (
               <>
-                <button 
-                  onClick={handleCapture} 
-                  className="btn-magnetic" 
-                  style={{ 
-                    flex: 1.2, 
-                    background: '#3b82f6', 
-                    color: 'white', 
-                    fontWeight: '800', 
-                    fontSize: '0.75rem', 
-                    padding: '0.6rem', 
-                    borderRadius: '10px',
-                    cursor: 'pointer' 
-                  }}
-                >
+                <button className="scanner-btn scanner-btn--capture" onClick={captureFrame}>
                   ⚡ Capture Sample
                 </button>
-                <button 
-                  onClick={stopCamera} 
-                  style={{ 
-                    flex: 0.8, 
-                    background: '#ef4444', 
-                    color: 'white', 
-                    fontWeight: '800', 
-                    fontSize: '0.75rem', 
-                    padding: '0.6rem', 
-                    borderRadius: '10px', 
-                    border: '2px solid #0f172a',
-                    cursor: 'pointer' 
-                  }}
-                >
-                  ✕ Close
+                <button className="scanner-btn scanner-btn--danger" onClick={stopCamera}>
+                  ✕ Close Camera
                 </button>
               </>
             )}
+            {cameraState === 'requesting' && (
+              <button className="scanner-btn scanner-btn--disabled" disabled>
+                ⏳ Waiting…
+              </button>
+            )}
 
-            <button 
-              onClick={() => fileInputRef.current.click()} 
-              style={{ 
-                flex: 1, 
-                background: '#f1f5f9', 
-                border: '2px solid #0f172a', 
-                fontWeight: '800', 
-                fontSize: '0.75rem', 
-                padding: '0.6rem', 
-                borderRadius: '10px', 
-                color: '#0f172a',
-                cursor: 'pointer' 
-              }}
-            >
-              📤 Upload Leaf Image
+            <button className="scanner-btn scanner-btn--upload" onClick={() => fileInputRef.current?.click()}>
+              📤 Upload Image
             </button>
-            <input 
-              ref={fileInputRef} 
-              type="file" 
-              accept="image/*" 
-              onChange={handleFileChange} 
-              style={{ display: 'none' }}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
           </div>
 
-          {(uploadedImage || streamActive) && !scanning && (
-            <button 
-              onClick={runAnalysis} 
-              className="btn-magnetic" 
-              style={{ 
-                background: '#0f172a', 
-                color: '#22c55e', 
-                fontWeight: '900', 
-                fontSize: '0.8rem', 
-                padding: '0.75rem', 
-                borderRadius: '10px', 
-                border: '3px solid #22c55e',
-                cursor: 'pointer',
-                marginTop: '0.25rem' 
-              }}
-            >
+          {activeImage && !scanning && !result && (
+            <button className="scanner-btn scanner-btn--analyze" onClick={runAnalysis}>
               🧬 RUN AI LEAF DISEASE DIAGNOSIS
             </button>
           )}
-        </div>
 
-        {/* Right Side: Diagnosis results display */}
-        <div className="db-card" style={{ border: '2px solid #e2e8f0', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white' }}>
-          <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-            🔬 Diagnosis & Treatment Output
-          </h2>
-
-          {result ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-              
-              {/* Core metrics */}
-              <div style={{ background: '#f8fafc', padding: '0.9rem', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
-                <span style={{ fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase', background: '#ef4444', color: 'white', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>AI DISEASE DETECTED</span>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.15rem', color: '#0f172a', margin: '0.25rem 0' }}>{result.disease}</h3>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  <div style={{ background: 'white', padding: '0.4rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.55rem', color: '#64748b', display: 'block', fontWeight: '800' }}>SEVERITY</span>
-                    <strong style={{ fontSize: '0.75rem', color: '#ef4444' }}>{result.severity}</strong>
-                  </div>
-                  <div style={{ background: 'white', padding: '0.4rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.55rem', color: '#64748b', display: 'block', fontWeight: '800' }}>CONFIDENCE</span>
-                    <strong style={{ fontSize: '0.75rem', color: '#22c55e' }}>{result.confidence}</strong>
-                  </div>
-                  <div style={{ background: 'white', padding: '0.4rem', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                    <span style={{ fontSize: '0.55rem', color: '#64748b', display: 'block', fontWeight: '800' }}>SURFACE AREA</span>
-                    <strong style={{ fontSize: '0.75rem', color: '#3b82f6' }}>{result.affectedArea}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Diagnosis rationale */}
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Pathology & Impact</span>
-                <p style={{ fontSize: '0.72rem', color: '#334155', margin: '0.25rem 0 0', lineHeight: '1.4' }}>{result.diagnosis}</p>
-              </div>
-
-              {/* Medications recommended */}
-              <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: '0.75rem' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: '900', color: '#22c55e', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>💊 Recommended Medications</span>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.7rem' }}>
-                  <div style={{ background: '#f0fdf4', padding: '0.5rem 0.75rem', borderRadius: '8px', borderLeft: '3px solid #22c55e' }}>
-                    <strong>🧪 Chemical Treatment:</strong>
-                    <p style={{ margin: '0.1rem 0 0', color: '#166534' }}>{result.medications.chemical}</p>
-                    <small style={{ color: '#166534', fontWeight: '700' }}>Dosage: {result.medications.dosage}</small>
-                  </div>
-
-                  <div style={{ background: '#fef9c3', padding: '0.5rem 0.75rem', borderRadius: '8px', borderLeft: '3px solid #eab308' }}>
-                    <strong>🌿 Organic Remedy:</strong>
-                    <p style={{ margin: '0.1rem 0 0', color: '#854d0e' }}>{result.medications.organic}</p>
-                  </div>
-
-                  <div style={{ background: '#eff6ff', padding: '0.5rem 0.75rem', borderRadius: '8px', borderLeft: '3px solid #3b82f6' }}>
-                    <strong>⚠️ Agricultural Precaution:</strong>
-                    <p style={{ margin: '0.1rem 0 0', color: '#1e40af' }}>{result.medications.precautions}</p>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', textAlign: 'center', color: '#94a3b8' }}>
-              <div>
-                <span style={{ fontSize: '2.5rem', display: 'block' }}>🔬</span>
-                <p style={{ fontSize: '0.75rem', fontWeight: '700', margin: '0.5rem 0 0' }}>Awaiting Scan Sample</p>
-                <p style={{ fontSize: '0.65rem', color: '#64748b' }}>Results, confidence values and target crop treatments will render here post scanning.</p>
-              </div>
-            </div>
+          {result && !treatmentSent && (
+            <p className="scanner-hint">👉 Select your preferred treatment on the right, then confirm to send it to your dashboard.</p>
           )}
         </div>
 
-      </div>
+        {/* ── RIGHT: Results + Treatment ── */}
+        <div className="scanner-result-card">
+          <h2 className="scanner-card-title">🔬 Diagnosis &amp; Treatment</h2>
 
-      {/* ── PERSISTENT SCAN HISTORY LOGS ── */}
-      <div className="db-card" style={{ border: '2px solid #0f172a', borderRadius: '20px', padding: '1.25rem', boxShadow: '4px 4px 0 0 #0f172a' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.05rem', color: '#0f172a', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          📅 Diagnostic Logs History
-        </h3>
-        <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '-0.4rem', marginBottom: '1rem' }}>
-          Select a historical log entry below to fetch and display the detailed recommended medications and treatment sheets.
-        </p>
+          {!result && !scanning && (
+            <div className="scanner-await">
+              <span style={{ fontSize: '2.5rem' }}>🔬</span>
+              <p className="scanner-await-title">Awaiting Scan</p>
+              <p className="scanner-await-sub">Capture or upload a leaf image, then run AI diagnosis. Results and treatment options will appear here.</p>
+            </div>
+          )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {logs.map((log) => (
-            <div 
-              key={log.id} 
-              onClick={() => setSelectedLog(selectedLog?.id === log.id ? null : log)}
-              style={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                gap: '0.5rem',
-                background: selectedLog?.id === log.id ? '#f0fdf4' : '#f8fafc',
-                border: selectedLog?.id === log.id ? '2.5px solid #22c55e' : '2px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '0.75rem',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1rem' }}>📅</span>
-                  <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>{log.date}</span>
-                  <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#0f172a' }}>{log.disease}</span>
+          {result && (
+            <div className="scanner-result-body">
+
+              {/* ── Disease summary ── */}
+              <div className="scanner-disease-box" style={{ background: sevStyle.bg, borderColor: sevStyle.border }}>
+                <span className="scanner-ai-badge">AI DETECTED</span>
+                <h3 className="scanner-disease-name">{result.disease}</h3>
+                <div className="scanner-metrics">
+                  <div className="scanner-metric">
+                    <span className="scanner-metric-label">Severity</span>
+                    <strong style={{ color: sevStyle.color }}>{result.severity}</strong>
+                  </div>
+                  <div className="scanner-metric">
+                    <span className="scanner-metric-label">Confidence</span>
+                    <strong style={{ color: '#22c55e' }}>{result.confidence}</strong>
+                  </div>
+                  <div className="scanner-metric">
+                    <span className="scanner-metric-label">Affected</span>
+                    <strong style={{ color: '#3b82f6' }}>{result.affectedArea}</strong>
+                  </div>
                 </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.55rem', fontWeight: '800', background: '#fee2e2', color: '#ef4444', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                    {log.severity}
-                  </span>
-                  <span style={{ fontSize: '0.55rem', fontWeight: '800', background: '#dcfce7', color: '#15803d', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                    🎯 {log.confidence}
-                  </span>
-                  <span style={{ fontSize: '0.6rem', color: '#22c55e', fontWeight: '800' }}>
-                    {selectedLog?.id === log.id ? 'Collapse ▲' : 'View Medications ▼'}
-                  </span>
-                </div>
+                <p className="scanner-diagnosis-text">{result.diagnosis}</p>
               </div>
 
-              {/* Collapsible medication list */}
-              {selectedLog?.id === log.id && (
-                <div style={{ 
-                  marginTop: '0.5rem', 
-                  background: 'white', 
-                  border: '1.5px solid #22c55e', 
-                  borderRadius: '10px', 
-                  padding: '0.75rem', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '0.5rem',
-                  animation: 'scale-in 0.2s ease-out' 
-                }}>
-                  <h4 style={{ margin: 0, fontSize: '0.72rem', fontWeight: '900', color: '#15803d', borderBottom: '1px solid #dcfce7', paddingBottom: '0.25rem' }}>
-                    📋 Recommended Treatment Protocol for {log.disease}
-                  </h4>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem', fontSize: '0.68rem' }}>
-                    <div style={{ background: '#f0fdf4', padding: '0.5rem', borderRadius: '8px' }}>
-                      <strong style={{ color: '#15803d' }}>🧪 Chemical Fungicide/Pesticide:</strong>
-                      <p style={{ margin: '0.1rem 0 0', color: '#166534' }}>{log.medications.chemical}</p>
-                      <p style={{ margin: '0.1rem 0 0', fontWeight: '700', color: '#166534' }}>Dosage: {log.medications.dosage}</p>
-                    </div>
-
-                    <div style={{ background: '#fef9c3', padding: '0.5rem', borderRadius: '8px' }}>
-                      <strong style={{ color: '#854d0e' }}>🌿 Organic / Natural Solution:</strong>
-                      <p style={{ margin: '0.1rem 0 0', color: '#854d0e' }}>{log.medications.organic}</p>
-                    </div>
+              {/* ── Treatment selection ── */}
+              {!treatmentSent && (
+                <>
+                  <p className="scanner-select-label">💊 Select Treatment Protocol:</p>
+                  <div className="scanner-treatment-list">
+                    {result.treatments.map(t => (
+                      <button
+                        key={t.id}
+                        className={`scanner-treatment-opt ${selectedTreatment?.id === t.id ? 'selected' : ''}`}
+                        style={{
+                          background: selectedTreatment?.id === t.id ? t.bg : 'white',
+                          borderColor: selectedTreatment?.id === t.id ? t.border : '#e2e8f0',
+                        }}
+                        onClick={() => handleSelectTreatment(t)}
+                      >
+                        <div className="scanner-treat-header">
+                          <span className="scanner-treat-label" style={{ color: t.color }}>{t.label}</span>
+                          {selectedTreatment?.id === t.id && <span className="scanner-treat-check">✓ Selected</span>}
+                        </div>
+                        <p className="scanner-treat-name">{t.name}</p>
+                        <p className="scanner-treat-dosage">📏 {t.dosage}</p>
+                      </button>
+                    ))}
                   </div>
 
-                  <div style={{ background: '#eff6ff', padding: '0.5rem', borderRadius: '8px', fontSize: '0.65rem' }}>
-                    <strong style={{ color: '#1e40af' }}>⚠️ Crucial Agricultural Safeguards:</strong>
-                    <p style={{ margin: '0.1rem 0 0', color: '#1e40af' }}>{log.medications.precautions}</p>
+                  {/* Precaution */}
+                  <div className="scanner-precaution">
+                    <strong>⚠️ Agricultural Precaution:</strong>
+                    <p>{result.precaution}</p>
                   </div>
+
+                  {selectedTreatment && (
+                    <button className="scanner-btn scanner-btn--confirm" onClick={confirmTreatment}>
+                      ✅ Confirm &amp; Send to Dashboard
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* ── Treatment confirmed ── */}
+              {treatmentSent && (
+                <div className="scanner-confirmed">
+                  <span style={{ fontSize: '2.5rem' }}>✅</span>
+                  <h3>Treatment Added to Dashboard!</h3>
+                  <p><strong>{selectedTreatment?.name}</strong></p>
+                  <p className="scanner-confirmed-sub">Check your Dashboard &gt; Crop Treatments panel to mark it as done or skip.</p>
+                  <button className="scanner-btn scanner-btn--primary" onClick={resetScanner} style={{ marginTop: '1rem' }}>
+                    🔄 Scan Another Crop
+                  </button>
                 </div>
               )}
             </div>
-          ))}
+          )}
+        </div>
+      </div>
+
+      {/* ── DIAGNOSTIC LOGS ── */}
+      <div className="scanner-logs-card">
+        <h3 className="scanner-logs-title">📅 Diagnostic History</h3>
+        <p className="scanner-logs-sub">Tap a log entry to review its treatment details.</p>
+
+        <div className="scanner-logs-list">
+          {logs.map(log => {
+            const sc = SEVERITY_COLORS[log.severityLevel] || SEVERITY_COLORS.info
+            const isOpen = expandedLog === log.id
+            return (
+              <div key={log.id} className={`scanner-log-item ${isOpen ? 'open' : ''}`} style={{ borderColor: isOpen ? sc.border : '#e2e8f0' }}>
+                <button className="scanner-log-header" onClick={() => setExpandedLog(isOpen ? null : log.id)}>
+                  <div className="scanner-log-left">
+                    <span className="scanner-log-dot" style={{ background: sc.color }} />
+                    <div>
+                      <p className="scanner-log-disease">{log.disease}</p>
+                      <p className="scanner-log-date">{log.date}</p>
+                    </div>
+                  </div>
+                  <div className="scanner-log-right">
+                    <span className="scanner-log-badge" style={{ background: sc.bg, color: sc.color }}>{log.severity}</span>
+                    <span className="scanner-log-badge scanner-log-badge--conf">🎯 {log.confidence}</span>
+                    <span className="scanner-log-toggle">{isOpen ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+                {isOpen && (
+                  <div className="scanner-log-body">
+                    <p><strong>Treatment Applied:</strong> {log.treatment}</p>
+                    {log.dosage && <p><strong>Dosage:</strong> {log.dosage}</p>}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

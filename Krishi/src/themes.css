@@ -1,0 +1,62 @@
+/* ═══ TOPO CROP PANEL ═══ */
+.topo-crop-panel{margin-top:.65rem;background:var(--bg3);border:1px solid var(--accent-dark);border-radius:12px;padding:.8rem;display:flex;flex-direction:column;gap:.5rem}
+.topo-crop-panel-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.35rem;font-family:var(--font-display);font-weight:800;font-size:.82rem;color:var(--accent-dark)}
+.topo-crop-send-btn{background:var(--accent-dark);color:#fff;border:none;border-radius:8px;padding:.3rem .6rem;font-size:.62rem;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 6px rgba(34,197,94,.25)}
+.topo-crop-send-btn:hover{opacity:.9;transform:translateY(-1px)}
+.topo-crop-sent-badge{font-size:.58rem;font-weight:700;color:var(--accent-dark);background:rgba(34,197,94,.1);padding:.18rem .45rem;border-radius:6px}
+.topo-crop-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.4rem}
+.topo-crop-info-item{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:.4rem .5rem;display:flex;flex-direction:column;gap:.1rem}
+.topo-crop-info-item span{font-size:.58rem;font-weight:600;color:var(--text3)}
+.topo-crop-info-item strong{font-size:.68rem;color:var(--text)}
+.topo-crop-tip{background:var(--urg-warn-bg);border-left:3px solid var(--urg-warn);border-radius:8px;padding:.4rem .6rem;font-size:.62rem;color:var(--urg-warn);line-height:1.4}
+.topo-crop-tip strong{margin-right:.15rem}
+
+/* ═══ GLOBAL DARK THEME OVERRIDES ═══ */
+.dark-theme .db-root{background:#07111f}
+.dark-theme .db-sidebar{background:#0b132b;border-color:#1e293b}
+.dark-theme .db-main{background:#0e1728}
+.dark-theme .db-section{color:#f1f5f9}
+.dark-theme .db-page-title{color:#f1f5f9!important}
+.dark-theme .db-page-sub{color:#94a3b8!important}
+.dark-theme .db-card{background:#0e1728;border-color:#1e293b}
+.dark-theme .db-card-title{color:#f1f5f9;border-bottom-color:#1e293b}
+.dark-theme .db-info-row{color:#94a3b8;border-color:#1e293b}
+.dark-theme .db-info-row strong{color:#f1f5f9}
+.dark-theme .db-stat-value{color:#f1f5f9}
+.dark-theme .db-stat-label{color:#94a3b8}
+.dark-theme .db-table{color:#f1f5f9}
+.dark-theme .db-table th{background:#111b2d;color:#94a3b8;border-color:#1e293b}
+.dark-theme .db-table td{border-color:#1e293b;color:#cbd5e1}
+.dark-theme .db-revenue{color:#4ade80}
+.dark-theme .db-scheme-card{background:#0e1728;border-color:#1e293b}
+.dark-theme .db-scheme-name{color:#f1f5f9}
+.dark-theme .db-scheme-desc{color:#94a3b8}
+.dark-theme .db-scheme-btn{background:rgba(34,197,94,.1);color:#4ade80;border-color:#22c55e}
+.dark-theme .db-scheme-amount{color:#4ade80}
+.dark-theme .dash-clock-bar{border-color:#1e293b!important;background:#111b2d!important}
+.dark-theme .dash-clock-time{color:#4ade80}
+.dark-theme .dash-clock-date{color:#64748b}
+.dark-theme .db-mobile-bar{background:#0b132b;border-color:#1e293b}
+.dark-theme .db-mob-btn{color:#64748b}
+.dark-theme .db-mob-btn.active{color:#4ade80}
+.dark-theme .topo-env-strip{border-color:#1e293b!important}
+.dark-theme .topo-env-card{background:#111b2d!important;border-color:#1e293b!important}
+.dark-theme .topo-env-label{color:#64748b!important}
+.dark-theme .topo-env-val{color:#f1f5f9!important}
+.dark-theme select{background:#111b2d!important;color:#f1f5f9!important;border-color:#334155!important}
+.dark-theme .db-history-table-wrap{border-color:#1e293b}
+.dark-theme .db-user-card{background:#1e293b;border-color:#334155}
+.dark-theme .db-user-name{color:#f1f5f9}
+.dark-theme .db-user-email{color:#64748b}
+.dark-theme .db-logout-btn{background:rgba(239,68,68,.06);border-color:#7f1d1d;color:#f87171}
+
+/* ═══ LIGHT THEME EXPLICIT ═══ */
+.light-theme .db-root{background:#f1f5f9}
+.light-theme .db-main{background:#f1f5f9}
+
+/* ═══ MOBILE BOTTOM BAR PROFESSIONAL ═══ */
+.db-mobile-bar{border-top:1px solid var(--border);background:var(--bg2);box-shadow:0 -2px 8px rgba(0,0,0,.06)}
+.db-mob-btn{transition:all .15s}
+.db-mob-btn:hover{color:var(--accent-dark)}
+.db-mob-btn.active{color:var(--accent-dark);position:relative}
+.db-mob-btn.active::after{content:'';position:absolute;top:-1px;left:25%;right:25%;height:2px;background:var(--accent-dark);border-radius:0 0 2px 2px}

@@ -1,4 +1,28 @@
 import { useState, useEffect } from 'react'
+
+// Crop-specific treatment cards
+const CROP_TREATMENTS = {
+  'Wheat': { icon: '🌾', water: 'Moderate (3-4 irrigations)', fertilizer: 'DAP 100 kg/acre + Urea 55 kg/acre', season: 'Rabi (Oct–Mar)', tip: 'Apply 1st irrigation at crown root initiation stage (21 days after sowing).' },
+  'Paddy (Rice)': { icon: '🍚', water: 'High (continuous flooding 5 cm)', fertilizer: 'Urea 65 kg/acre split 3x', season: 'Kharif (Jun–Nov)', tip: 'Maintain 2–3 cm standing water till panicle initiation to suppress weeds.' },
+  'Sugarcane': { icon: '🎋', water: 'High (every 7–10 days)', fertilizer: 'NPK 50:25:25 kg/acre + Zinc sulfate', season: 'Year-round (plant Feb–Mar)', tip: 'Trash mulching after 4th month drastically reduces irrigation frequency.' },
+  'Cotton': { icon: '🪴', water: 'Moderate (critical at boll dev.)', fertilizer: 'Urea 40 kg/acre + Potash 20 kg/acre', season: 'Kharif (Apr–Nov)', tip: 'Avoid excess nitrogen after first square initiation — leads to vegetative overgrowth.' },
+  'Soybean': { icon: '🫘', water: 'Moderate (2 critical irrigations)', fertilizer: 'DAP 20 kg/acre (low N, high P)', season: 'Kharif (Jun–Sep)', tip: 'Inoculate seeds with Rhizobium culture to fix atmospheric nitrogen naturally.' },
+  'Groundnut': { icon: '🥜', water: 'Moderate (drought-tolerant)', fertilizer: 'Gypsum 200 kg/acre at pegging', season: 'Kharif (Jun–Oct)', tip: 'Apply gypsum at pegging stage for better pod filling and calcium supply.' },
+  'Carrots': { icon: '🥕', water: 'Regular light irrigation', fertilizer: 'Compost 4 t/acre + K 25 kg/acre', season: 'Rabi (Sep–Jan)', tip: 'Sandy soils need frequent but shallow irrigation; avoid waterlogging to prevent forking.' },
+  'Potato': { icon: '🥔', water: 'Frequent shallow irrigation', fertilizer: 'NPK 60:40:60 kg/acre', season: 'Rabi (Oct–Feb)', tip: 'Earth-up twice at 25 and 45 DAS for better tuber development.' },
+  'Melons': { icon: '🍈', water: 'Moderate (reduce at ripening)', fertilizer: 'Organic manure 4 t/acre', season: 'Summer (Feb–May)', tip: 'Reduce irrigation 10 days before harvest to improve sweetness.' },
+  'Millets': { icon: '🌾', water: 'Low (drought-hardy)', fertilizer: 'Urea 25 kg/acre only', season: 'Kharif (Jun–Sep)', tip: 'Pearl millet can tolerate 200 mm rainfall; ideal for dryland farming.' },
+  'Tomato': { icon: '🍅', water: 'Regular drip irrigation', fertilizer: 'NPK 40:25:40 kg/acre + micronutrients', season: 'Year-round (main: Oct–Jan)', tip: 'Stake plants early; use drip irrigation to reduce leaf moisture and fungal risk.' },
+  'Mustard': { icon: '🌻', water: 'Low-Moderate (2 irrigations)', fertilizer: 'Urea 30 kg/acre + Sulphur 10 kg/acre', season: 'Rabi (Oct–Mar)', tip: 'Sulphur application is critical for oilseed quality and seed fat content.' },
+  'Maize': { icon: '🌽', water: 'Moderate (critical at tasseling)', fertilizer: 'Urea 70 kg/acre split 3x', season: 'Kharif (Jun–Oct)', tip: 'Ensure irrigation at knee-high, tasseling, and grain filling stages.' },
+  'Pulses': { icon: '🫛', water: 'Low (1–2 light irrigations)', fertilizer: 'Phosphorus 25 kg/acre + Rhizobium', season: 'Rabi & Kharif', tip: 'Inoculate seeds with Rhizobium to reduce urea dependency by up to 80%.' },
+  'Lettuce': { icon: '🥬', water: 'Frequent light watering', fertilizer: 'Nitrogen-rich compost', season: 'Cool season (Nov–Feb)', tip: 'Mulch rows to keep soil cool and retain moisture for uniform leaf growth.' },
+  'Cabbage': { icon: '🥦', water: 'Moderate, consistent', fertilizer: 'NPK 30:15:15 + boron foliar', season: 'Rabi (Sep–Feb)', tip: 'Boron spray at head-formation stage prevents internal browning.' },
+  'Broccoli': { icon: '🥦', water: 'Regular moderate', fertilizer: 'NPK 35:20:20 kg/acre', season: 'Rabi (Sep–Jan)', tip: 'Harvest heads before flowers open for best market value.' },
+  'Blueberries': { icon: '🫐', water: 'High (acidic soil irrigation)', fertilizer: 'Ammonium sulfate for acidity', season: 'Perennial', tip: 'Maintain soil pH 4.5–5.5 using acidifying fertilizers or sulfur chips.' },
+  'Root Vegetables': { icon: '🥕', water: 'Moderate', fertilizer: 'Compost + Potash 30 kg/acre', season: 'Rabi', tip: 'Remove stones from soil bed to prevent forking and improve uniformity.' },
+  'Brassicas': { icon: '🥦', water: 'Regular moderate', fertilizer: 'NPK 30:20:20 + micronutrients', season: 'Rabi (Sep–Mar)', tip: 'Scout regularly for diamondback moth — use pheromone traps for monitoring.' },
+}
 import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -66,7 +90,7 @@ const getEnvConditions = (pos) => {
   }
 }
 
-export default function TopographicalConditions() {
+export default function TopographicalConditions({ onTreatmentSelected }) {
   const [userPos, setUserPos] = useState(DEFAULT_POS)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
@@ -82,6 +106,10 @@ export default function TopographicalConditions() {
   const [formSubmitted, setFormSubmitted] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
+
+  // Crop suggestion flow
+  const [selectedCrop, setSelectedCrop] = useState(null)
+  const [cropSentToDashboard, setCropSentToDashboard] = useState(false)
 
   // Fetch location on load
   const fetchLocation = () => {
@@ -480,28 +508,82 @@ export default function TopographicalConditions() {
                 </ul>
               </div>
 
-              {/* Matching Crops */}
+              {/* Matching Crops — clickable */}
               <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '0.3rem' }}>🌾 Recommended Matching Crops</span>
-                <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>🌾 Recommended Crops — Click to View Treatment Plan</span>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {analysisResult.matchingCrops.map(crop => (
-                    <span 
-                      key={crop} 
-                      style={{ 
-                        background: '#f0fdf4', 
-                        color: '#15803d', 
-                        border: '1px solid #22c55e', 
-                        borderRadius: '6px', 
-                        fontSize: '0.62rem', 
-                        padding: '0.2rem 0.45rem', 
-                        fontWeight: '700' 
+                    <button
+                      key={crop}
+                      onClick={() => { setSelectedCrop(crop === selectedCrop ? null : crop); setCropSentToDashboard(false) }}
+                      style={{
+                        background: selectedCrop === crop ? '#15803d' : '#f0fdf4',
+                        color: selectedCrop === crop ? 'white' : '#15803d',
+                        border: `2px solid ${selectedCrop === crop ? '#15803d' : '#22c55e'}`,
+                        borderRadius: '8px',
+                        fontSize: '0.68rem',
+                        padding: '0.3rem 0.6rem',
+                        fontWeight: '800',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
-                      {crop}
-                    </span>
+                      {CROP_TREATMENTS[crop]?.icon || '🌱'} {crop}
+                    </button>
                   ))}
                 </div>
               </div>
+
+              {/* Crop Treatment Detail Panel */}
+              {selectedCrop && CROP_TREATMENTS[selectedCrop] && (
+                <div className="topo-crop-panel" style={{ animation: 'scale-in 0.2s ease-out' }}>
+                  <div className="topo-crop-panel-header">
+                    <span>{CROP_TREATMENTS[selectedCrop].icon} {selectedCrop} — Cultivation Guide</span>
+                    {!cropSentToDashboard && (
+                      <button
+                        className="topo-crop-send-btn"
+                        onClick={() => {
+                          const reminder = {
+                            id: Date.now(),
+                            date: new Date().toISOString().replace('T','').substring(0,16),
+                            disease: `Crop Plan: ${selectedCrop}`,
+                            treatment: `${CROP_TREATMENTS[selectedCrop].fertilizer}`,
+                            severity: 'Plan 📋',
+                            severityLevel: 'info',
+                            confidence: '100%',
+                            dosage: `Season: ${CROP_TREATMENTS[selectedCrop].season}`,
+                            status: 'pending',
+                          }
+                          if (onTreatmentSelected) onTreatmentSelected(reminder)
+                          setCropSentToDashboard(true)
+                        }}
+                      >
+                        ✅ Add to Dashboard
+                      </button>
+                    )}
+                    {cropSentToDashboard && (
+                      <span className="topo-crop-sent-badge">✓ Added to Dashboard</span>
+                    )}
+                  </div>
+                  <div className="topo-crop-info-grid">
+                    <div className="topo-crop-info-item">
+                      <span>💧 Water Need</span>
+                      <strong>{CROP_TREATMENTS[selectedCrop].water}</strong>
+                    </div>
+                    <div className="topo-crop-info-item">
+                      <span>🧪 Fertilizer</span>
+                      <strong>{CROP_TREATMENTS[selectedCrop].fertilizer}</strong>
+                    </div>
+                    <div className="topo-crop-info-item">
+                      <span>📅 Season</span>
+                      <strong>{CROP_TREATMENTS[selectedCrop].season}</strong>
+                    </div>
+                  </div>
+                  <div className="topo-crop-tip">
+                    <strong>💡 Expert Tip:</strong> {CROP_TREATMENTS[selectedCrop].tip}
+                  </div>
+                </div>
+              )}
 
             </div>
           )}
