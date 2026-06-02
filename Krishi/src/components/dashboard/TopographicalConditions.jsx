@@ -296,12 +296,12 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
         
         {/* Left: GIS Terrain Map */}
-        <div className="db-card" style={{ border: '3px solid #0f172a', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white', boxShadow: '5px 5px 0 0 #0f172a' }}>
+        <div className="db-card" style={{ border: '3px solid var(--text)', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg2)', boxShadow: '5px 5px 0 0 var(--text)' }}>
           <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             ⛰️ Sat GIS Terrain Map Only
           </h2>
           
-          <div style={{ height: '320px', width: '100%', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid #0f172a', zIndex: 1 }}>
+          <div style={{ height: '320px', width: '100%', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid var(--text)', zIndex: 1 }}>
             <MapContainer 
               center={[userPos.lat, userPos.lng]} 
               zoom={12} 
@@ -329,20 +329,20 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
         </div>
 
         {/* Right: GPS Soil Auto-Detection */}
-        <div className="db-card" style={{ border: '2px solid #e2e8f0', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'white' }}>
-          <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.5rem' }}>
+        <div className="db-card" style={{ border: '2px solid var(--border)', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg2)' }}>
+          <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', color: 'var(--text)' }}>
             🛰️ Coordinates-Based Soil Profile
           </h2>
 
-          <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '14px', border: '1.5px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+          <div style={{ background: 'var(--bg3)', padding: '1rem', borderRadius: '14px', border: '1.5px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase' }}>Current GPS location</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: '800', color: 'var(--text3)', textTransform: 'uppercase' }}>Current GPS location</span>
               <strong style={{ fontSize: '0.7rem', color: '#22c55e' }}>{userPos.lat.toFixed(4)}° N, {userPos.lng.toFixed(4)}° E</strong>
             </div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: '#0f172a', margin: '0.2rem 0' }}>
+            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: 'var(--text)', margin: '0.2rem 0' }}>
               {closestSoil.name}
             </h3>
-            <p style={{ fontSize: '0.72rem', color: '#475569', lineHeight: '1.4', margin: 0 }}>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text2)', lineHeight: '1.4', margin: 0 }}>
               {closestSoil.description}
             </p>
           </div>
@@ -355,9 +355,9 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
             <div className="db-info-row"><span>Soil Alkaline scale</span><span style={{ fontWeight: '700' }}>{closestSoil.nutrients.pH}</span></div>
           </div>
 
-          <div style={{ background: '#f0fdf4', padding: '0.75rem', borderRadius: '10px', borderLeft: '3.5px solid #22c55e' }}>
+          <div style={{ background: 'var(--bg3)', padding: '0.75rem', borderRadius: '10px', borderLeft: '3.5px solid #22c55e', borderTop: '1px solid var(--border)', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
             <strong style={{ fontSize: '0.68rem', color: '#15803d', display: 'block', textTransform: 'uppercase', marginBottom: '0.2rem' }}>🚀 AI Base Treatment:</strong>
-            <p style={{ margin: 0, fontSize: '0.68rem', color: '#166534', lineHeight: '1.4' }}>{closestSoil.improvement}</p>
+            <p style={{ margin: 0, fontSize: '0.68rem', color: 'var(--text2)', lineHeight: '1.4' }}>{closestSoil.improvement}</p>
           </div>
         </div>
 
@@ -367,11 +367,11 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
         
         {/* Form panel */}
-        <div className="db-card" style={{ border: '2px solid #0f172a', borderRadius: '20px', padding: '1.25rem', boxShadow: '4px 4px 0 0 #0f172a', background: 'white' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.05rem', color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="db-card" style={{ border: '2px solid var(--text)', borderRadius: '20px', padding: '1.25rem', boxShadow: '4px 4px 0 0 var(--text)', background: 'var(--bg2)' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.05rem', color: 'var(--text)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             🧪 Input Your Soil Observations
           </h3>
-          <p style={{ fontSize: '0.68rem', color: '#64748b', marginTop: '-0.3rem', marginBottom: '1rem' }}>
+          <p style={{ fontSize: '0.68rem', color: 'var(--text3)', marginTop: '-0.3rem', marginBottom: '1rem' }}>
             No lab report needed! Describe your physical soil observation, and our agronomic engine will predict chemical deficiencies.
           </p>
 
@@ -379,13 +379,13 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
             
             {/* Observed Texture */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.3rem' }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.3rem' }}>
                 🪨 Soil Texture / Texture Type
               </label>
               <select 
                 value={inputType} 
                 onChange={(e) => setInputType(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.75rem', fontWeight: '700', background: 'white' }}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', background: 'var(--bg2)', color: 'var(--text)' }}
               >
                 <option value="loamy">Loamy Soil (Balanced sand/clay, crumbly texture)</option>
                 <option value="clayey">Clayey Soil (Heavy, very sticky when wet, hard when dry)</option>
@@ -397,13 +397,13 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
 
             {/* Observed Color */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.3rem' }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.3rem' }}>
                 🎨 Soil Color
               </label>
               <select 
                 value={inputColor} 
                 onChange={(e) => setInputColor(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.75rem', fontWeight: '700', background: 'white' }}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', background: 'var(--bg2)', color: 'var(--text)' }}
               >
                 <option value="dark">Dark Brown / Deep Black (Rich in humic matter)</option>
                 <option value="red">Reddish Brown / Rusty Red (Iron oxide rich, low calcium)</option>
@@ -413,13 +413,13 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
 
             {/* Soil Moisture */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.3rem' }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.3rem' }}>
                 💧 Average Soil Moisture State
               </label>
               <select 
                 value={inputMoisture} 
                 onChange={(e) => setInputMoisture(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.75rem', fontWeight: '700', background: 'white' }}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', background: 'var(--bg2)', color: 'var(--text)' }}
               >
                 <option value="moist">Optimal Moist (Damp but fluffy)</option>
                 <option value="dry">Extremely Dry / Cracking (Arid, water-deprived)</option>
@@ -429,13 +429,13 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
 
             {/* Farming Practice */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.3rem' }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.3rem' }}>
                 🚜 Agricultural Tillage Practice
               </label>
               <select 
                 value={inputPractice} 
                 onChange={(e) => setInputPractice(e.target.value)}
-                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '0.75rem', fontWeight: '700', background: 'white' }}
+                style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', border: '2px solid var(--border)', fontSize: '0.75rem', fontWeight: '700', background: 'var(--bg2)', color: 'var(--text)' }}
               >
                 <option value="traditional">Traditional Intensive Tilling (Rotavator, tractor ploughing)</option>
                 <option value="organic">Organic Tilling with heavy manure cycling</option>
@@ -447,8 +447,8 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
               type="submit"
               className="btn-magnetic"
               style={{ 
-                background: '#0f172a', 
-                color: '#22c55e', 
+                background: 'var(--text)', 
+                color: 'var(--bg)', 
                 fontWeight: '900', 
                 fontSize: '0.75rem', 
                 padding: '0.65rem', 
@@ -464,8 +464,8 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
         </div>
 
         {/* Results / Diagnostics panel */}
-        <div className="db-card" style={{ border: '2px solid #e2e8f0', borderRadius: '20px', padding: '1.25rem', background: 'white', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.05rem', color: '#0f172a', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.5rem', margin: 0 }}>
+        <div className="db-card" style={{ border: '2px solid var(--border)', borderRadius: '20px', padding: '1.25rem', background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.05rem', color: 'var(--text)', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', margin: 0 }}>
             ⚡ Diagnosis & Remediation Output
           </h3>
 
@@ -480,13 +480,13 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', animation: 'scale-in 0.2s ease-out' }}>
               
               {/* Soil Chemical Forecast */}
-              <div style={{ background: '#f8fafc', padding: '0.75rem 0.9rem', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+              <div style={{ background: 'var(--bg3)', padding: '0.75rem 0.9rem', borderRadius: '12px', border: '1.5px solid var(--border)' }}>
                 <span style={{ fontSize: '0.6rem', fontWeight: '900', textTransform: 'uppercase', background: '#3b82f6', color: 'white', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>AI Mineral Prediction</span>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.7rem' }}>
-                  <div><span>Nitrogen:</span> <strong style={{ color: '#0f172a' }}>{analysisResult.nutrients.n}</strong></div>
-                  <div><span>Phosphorus:</span> <strong style={{ color: '#0f172a' }}>{analysisResult.nutrients.p}</strong></div>
-                  <div><span>Potassium:</span> <strong style={{ color: '#0f172a' }}>{analysisResult.nutrients.k}</strong></div>
+                  <div><span>Nitrogen:</span> <strong style={{ color: 'var(--text)' }}>{analysisResult.nutrients.n}</strong></div>
+                  <div><span>Phosphorus:</span> <strong style={{ color: 'var(--text)' }}>{analysisResult.nutrients.p}</strong></div>
+                  <div><span>Potassium:</span> <strong style={{ color: 'var(--text)' }}>{analysisResult.nutrients.k}</strong></div>
                   <div><span>Expected pH:</span> <strong style={{ color: '#3b82f6' }}>{analysisResult.nutrients.pH}</strong></div>
                 </div>
               </div>
@@ -494,32 +494,32 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
               {/* Soil Drainage */}
               <div style={{ fontSize: '0.72rem' }}>
                 <span>🛡️ Predicted Soil Drainage Index:</span>
-                <strong style={{ display: 'block', color: '#0f172a', fontSize: '0.8rem', marginTop: '0.1rem' }}>💧 {analysisResult.drainage}</strong>
+                <strong style={{ display: 'block', color: 'var(--text)', fontSize: '0.8rem', marginTop: '0.1rem' }}>💧 {analysisResult.drainage}</strong>
               </div>
 
               {/* Corrective Actions */}
-              <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: '0.6rem' }}>
+              <div style={{ borderTop: '2px dashed var(--border)', paddingTop: '0.6rem' }}>
                 <span style={{ fontSize: '0.72rem', fontWeight: '900', color: '#22c55e', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>🛠️ Action Plan: How to Improve Soil Health</span>
                 
-                <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.68rem', color: '#334155', display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: '1.4' }}>
+                <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.68rem', color: 'var(--text2)', display: 'flex', flexDirection: 'column', gap: '0.35rem', lineHeight: '1.4' }}>
                   {analysisResult.correctiveActions.map((act, index) => (
-                    <li key={index} style={{ marginBottom: '0.1rem' }}>{act}</li>
+                     <li key={index} style={{ marginBottom: '0.1rem' }}>{act}</li>
                   ))}
                 </ul>
               </div>
 
               {/* Matching Crops — clickable */}
-              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.6rem' }}>
-                <span style={{ fontSize: '0.68rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>🌾 Recommended Crops — Click to View Treatment Plan</span>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: '800', color: 'var(--text3)', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>🌾 Recommended Crops — Click to View Treatment Plan</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {analysisResult.matchingCrops.map(crop => (
                     <button
                       key={crop}
                       onClick={() => { setSelectedCrop(crop === selectedCrop ? null : crop); setCropSentToDashboard(false) }}
                       style={{
-                        background: selectedCrop === crop ? '#15803d' : '#f0fdf4',
-                        color: selectedCrop === crop ? 'white' : '#15803d',
-                        border: `2px solid ${selectedCrop === crop ? '#15803d' : '#22c55e'}`,
+                        background: selectedCrop === crop ? '#15803d' : 'var(--bg3)',
+                        color: selectedCrop === crop ? 'white' : '#22c55e',
+                        border: `2px solid ${selectedCrop === crop ? '#15803d' : 'var(--border)'}`,
                         borderRadius: '8px',
                         fontSize: '0.68rem',
                         padding: '0.3rem 0.6rem',

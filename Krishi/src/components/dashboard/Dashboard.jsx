@@ -54,6 +54,14 @@ export default function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+    const mainEl = document.querySelector('.db-main')
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, behavior: 'instant' })
+    }
+  }, [activeTab])
+
   const fmt = (d) => d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true })
   const fmtDate = (d) => d.toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 

@@ -79,15 +79,15 @@ export default function CropSecurity() {
       <p className="db-page-sub">Interactive eligibility engine matching financial assistance and crop protection policies based on your land assets.</p>
 
       {/* Inputs Section */}
-      <div className="db-card" style={{ marginBottom: '1.5rem', background: '#f8fafc', border: '3px solid #0f172a', boxShadow: '5px 5px 0 0 #0f172a' }}>
-        <h2 className="db-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', marginBottom: '1rem' }}>
+      <div className="db-card" style={{ marginBottom: '1.5rem', background: 'var(--bg2)', border: '3px solid var(--text)', boxShadow: '5px 5px 0 0 var(--text)' }}>
+        <h2 className="db-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--text)' }}>
           🧮 Loan & Insurance Parameters
         </h2>
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {/* Land size slider */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.4rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.4rem' }}>
               🌾 Land Size: <strong style={{ color: '#22c55e', fontSize: '0.9rem' }}>{landSize} Acres</strong>
             </label>
             <input 
@@ -98,7 +98,7 @@ export default function CropSecurity() {
               onChange={(e) => setLandSize(parseInt(e.target.value))}
               style={{ width: '100%', accentColor: '#22c55e' }}
             />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#64748b', marginTop: '0.1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text3)', marginTop: '0.1rem' }}>
               <span>1 Acre</span>
               <span>50 Acres</span>
             </div>
@@ -106,7 +106,7 @@ export default function CropSecurity() {
 
           {/* Crop cycle */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.4rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.4rem' }}>
               🍂 Crop Cycle & Category
             </label>
             <select 
@@ -116,10 +116,11 @@ export default function CropSecurity() {
                 width: '100%', 
                 padding: '0.5rem', 
                 borderRadius: '8px', 
-                border: '2px solid #e2e8f0', 
+                border: '2px solid var(--border)', 
                 fontSize: '0.75rem', 
                 fontWeight: '700',
-                background: 'white' 
+                background: 'var(--bg2)',
+                color: 'var(--text)' 
               }}
             >
               <option value="rabi">Rabi Crops (Wheat, Mustard, Barley - 1.5% Premium)</option>
@@ -130,11 +131,11 @@ export default function CropSecurity() {
 
           {/* Credit amount */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#475569', marginBottom: '0.4rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: 'var(--text2)', marginBottom: '0.4rem' }}>
               💰 Required Credit Limit (Loan)
             </label>
             <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', fontWeight: '700', fontSize: '0.8rem', color: '#475569' }}>₹</span>
+              <span style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', fontWeight: '700', fontSize: '0.8rem', color: 'var(--text2)' }}>₹</span>
               <input 
                 type="number" 
                 min="10000" 
@@ -145,14 +146,16 @@ export default function CropSecurity() {
                   width: '100%', 
                   padding: '0.5rem 0.5rem 0.5rem 1.4rem', 
                   borderRadius: '8px', 
-                  border: '2px solid #e2e8f0', 
+                  border: '2px solid var(--border)', 
                   fontSize: '0.8rem', 
                   fontWeight: '700',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  background: 'var(--bg2)',
+                  color: 'var(--text)'
                 }}
               />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#64748b', marginTop: '0.2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text3)', marginTop: '0.2rem' }}>
               <span>Min: ₹10K</span>
               <span>Subsidized limit: ₹3 Lakhs</span>
             </div>
@@ -160,7 +163,7 @@ export default function CropSecurity() {
         </div>
 
         {/* Repayment Option */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', borderTop: '2px dashed #e2e8f0', paddingTop: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1.25rem', borderTop: '2px dashed var(--border)', paddingTop: '0.75rem' }}>
           <input 
             type="checkbox" 
             id="timely-repay" 
@@ -168,7 +171,7 @@ export default function CropSecurity() {
             onChange={(e) => setTimelyRepay(e.target.checked)}
             style={{ width: '18px', height: '18px', accentColor: '#22c55e', cursor: 'pointer' }}
           />
-          <label htmlFor="timely-repay" style={{ fontSize: '0.75rem', fontWeight: '700', color: '#0f172a', cursor: 'pointer' }}>
+          <label htmlFor="timely-repay" style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text)', cursor: 'pointer' }}>
             🤝 I plan to pay back timely within 1 year (Activates additional <strong>3% interest subvention discount</strong> under KCC!)
           </label>
         </div>
@@ -177,7 +180,7 @@ export default function CropSecurity() {
       {/* AI recommendation alert */}
       <div className="mp-ai-box" style={{ 
         borderColor: '#22c55e', 
-        background: '#f0fdf4', 
+        background: 'var(--bg3)', 
         border: '3px solid #22c55e', 
         boxShadow: '4px 4px 0 0 #22c55e', 
         padding: '1.25rem', 
@@ -186,21 +189,21 @@ export default function CropSecurity() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
           <span style={{ fontSize: '1.3rem' }}>🤖</span>
-          <strong style={{ fontSize: '0.8rem', letterSpacing: '0.05em', color: '#15803d', textTransform: 'uppercase' }}>
+          <strong style={{ fontSize: '0.8rem', letterSpacing: '0.05em', color: '#22c55e', textTransform: 'uppercase' }}>
             Krishi AI Best-Fit Recommendation
           </strong>
         </div>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: '#0f172a', margin: '0.25rem 0' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: 'var(--text)', margin: '0.25rem 0' }}>
           {aiRec.title}
         </h3>
-        <p style={{ fontSize: '0.75rem', color: '#334155', lineHeight: '1.5', margin: '0.5rem 0' }}>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text2)', lineHeight: '1.5', margin: '0.5rem 0' }}>
           {aiRec.reason}
         </p>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid rgba(34, 197, 94, 0.2)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-          <span style={{ fontSize: '0.7rem', color: '#15803d', fontWeight: '800' }}>
+          <span style={{ fontSize: '0.7rem', color: '#22c55e', fontWeight: '800' }}>
             💰 Est. Interest Savings: <strong style={{ fontSize: '0.9rem' }}>₹{aiRec.netSavings.toLocaleString()}</strong>
           </span>
-          <span style={{ fontSize: '0.7rem', color: '#0f172a', fontWeight: '800' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text)', fontWeight: '800' }}>
             🏦 Recommended Banks: <strong style={{ color: '#22c55e' }}>{aiRec.bestBanks.join(', ')}</strong>
           </span>
         </div>
@@ -210,32 +213,32 @@ export default function CropSecurity() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
         
         {/* Left Side: Loan Options */}
-        <div className="db-card" style={{ border: '2px solid #e2e8f0', borderRadius: '18px', padding: '1.25rem' }}>
-          <h3 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="db-card" style={{ border: '2px solid var(--border)', borderRadius: '18px', padding: '1.25rem', background: 'var(--bg2)' }}>
+          <h3 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)' }}>
             🏛️ Eligible Crop Loans comparison
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* KCC Loan Card */}
             <div style={{ 
-              background: creditNeeded <= 300000 ? '#f8fafc' : '#ffffff', 
-              border: creditNeeded <= 300000 ? '2px solid #22c55e' : '2px solid #e2e8f0', 
+              background: 'var(--bg3)', 
+              border: creditNeeded <= 300000 ? '2px solid #22c55e' : '2px solid var(--border)', 
               borderRadius: '12px', 
               padding: '0.9rem',
               position: 'relative'
             }}>
               {creditNeeded <= 300000 && <span style={{ position: 'absolute', right: '0.5rem', top: '0.5rem', background: '#22c55e', color: '#0f172a', fontWeight: '800', fontSize: '0.55rem', padding: '0.15rem 0.4rem', borderRadius: '4px', textTransform: 'uppercase' }}>AI Best Fit</span>}
-              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0 }}>🌾 Kisan Credit Card (KCC) Loan</h4>
-              <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '0.2rem 0 0.5rem' }}>Short-term crop production loan under government subvention scheme.</p>
+              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0, color: 'var(--text)' }}>🌾 Kisan Credit Card (KCC) Loan</h4>
+              <p style={{ fontSize: '0.68rem', color: 'var(--text3)', margin: '0.2rem 0 0.5rem' }}>Short-term crop production loan under government subvention scheme.</p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.72rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Base Interest Rate:</span><span>7.0%</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#22c55e', fontWeight: '700' }}><span>Repayment Discount:</span><span>-{kccSubvention}%</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid #e2e8f0', paddingTop: '0.25rem', fontSize: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid var(--border)', paddingTop: '0.25rem', fontSize: '0.75rem' }}>
                   <span>Effective Interest Rate:</span>
                   <span style={{ color: '#22c55e' }}>{kccNetRate}% per annum</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', color: '#0f172a', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', color: 'var(--text)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
                   <span>Total Interest Payable:</span>
                   <span>₹{kccInterestPayable.toLocaleString()}</span>
                 </div>
@@ -244,21 +247,22 @@ export default function CropSecurity() {
 
             {/* Commercial Term Loan Card */}
             <div style={{ 
-              border: '2px solid #e2e8f0', 
+              border: '2px solid var(--border)', 
               borderRadius: '12px', 
-              padding: '0.9rem'
+              padding: '0.9rem',
+              background: 'var(--bg3)'
             }}>
-              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0 }}>🚜 Agricultural Term Loan</h4>
-              <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '0.2rem 0 0.5rem' }}>Longer-term credit for irrigation, modern machinery, solar pumps, or farm land upgrades.</p>
+              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0, color: 'var(--text)' }}>🚜 Agricultural Term Loan</h4>
+              <p style={{ fontSize: '0.68rem', color: 'var(--text3)', margin: '0.2rem 0 0.5rem' }}>Longer-term credit for irrigation, modern machinery, solar pumps, or farm land upgrades.</p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.72rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Base Interest Rate:</span><span>9.2%</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}><span>Interest Subventions:</span><span>Not Eligible</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid #e2e8f0', paddingTop: '0.25rem', fontSize: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text3)' }}><span>Interest Subventions:</span><span>Not Eligible</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid var(--border)', paddingTop: '0.25rem', fontSize: '0.75rem' }}>
                   <span>Effective Interest Rate:</span>
                   <span>{termBaseRate}% per annum</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', color: '#0f172a', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', color: 'var(--text)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
                   <span>Total Interest Payable:</span>
                   <span>₹{termInterestPayable.toLocaleString()}</span>
                 </div>
@@ -268,15 +272,15 @@ export default function CropSecurity() {
         </div>
 
         {/* Right Side: Insurance Schemes */}
-        <div className="db-card" style={{ border: '2px solid #e2e8f0', borderRadius: '18px', padding: '1.25rem' }}>
-          <h3 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', borderBottom: '2px solid #f1f5f9', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div className="db-card" style={{ border: '2px solid var(--border)', borderRadius: '18px', padding: '1.25rem', background: 'var(--bg2)' }}>
+          <h3 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text)' }}>
             🛡️ Eligible Crop Insurance comparison
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {/* PMFBY Insurance Card */}
             <div style={{ 
-              background: '#f8fafc',
+              background: 'var(--bg3)',
               border: '2px solid #22c55e', 
               borderRadius: '12px', 
               padding: '0.9rem',
@@ -284,14 +288,14 @@ export default function CropSecurity() {
               position: 'relative'
             }}>
               <span style={{ position: 'absolute', right: '0.5rem', top: '0.5rem', background: '#22c55e', color: '#0f172a', fontWeight: '800', fontSize: '0.55rem', padding: '0.15rem 0.4rem', borderRadius: '4px', textTransform: 'uppercase' }}>Government Supported</span>
-              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0 }}>🌾 PM Fasal Bima Yojana (PMFBY)</h4>
-              <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '0.2rem 0 0.5rem' }}>Full seasonal insurance covering drought, flooding, pests, landslides, and storm damage.</p>
+              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0, color: 'var(--text)' }}>🌾 PM Fasal Bima Yojana (PMFBY)</h4>
+              <p style={{ fontSize: '0.68rem', color: 'var(--text3)', margin: '0.2rem 0 0.5rem' }}>Full seasonal insurance covering drought, flooding, pests, landslides, and storm damage.</p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.72rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Premium Rate for {cropCycle.toUpperCase()}:</span><span>{pmfbyConfig.rate}%</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sum Insured (₹{pmfbyConfig.sumPerAcre.toLocaleString()}/acre):</span><span style={{ fontWeight: '700' }}>₹{pmfbySumInsured.toLocaleString()}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#22c55e' }}><span>Government Subsidy Contribution:</span><span>₹{pmfbyGovtSubsidy.toLocaleString()}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid #e2e8f0', paddingTop: '0.25rem', fontSize: '0.78rem', color: '#15803d' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid var(--border)', paddingTop: '0.25rem', fontSize: '0.78rem', color: '#22c55e' }}>
                   <span>Farmer Share Payable (Premium):</span>
                   <span>₹{pmfbyFarmerPremium.toLocaleString()}</span>
                 </div>
@@ -300,17 +304,18 @@ export default function CropSecurity() {
 
             {/* WBCIS Insurance Card */}
             <div style={{ 
-              border: '2px solid #e2e8f0', 
+              border: '2px solid var(--border)', 
               borderRadius: '12px', 
-              padding: '0.9rem'
+              padding: '0.9rem',
+              background: 'var(--bg3)'
             }}>
-              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0 }}>🌦️ Weather Based Crop Insurance (WBCIS)</h4>
-              <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '0.2rem 0 0.5rem' }}>Claims are automatically released when local rainfall, dry spells, or temperatures hit critical thresholds.</p>
+              <h4 style={{ fontFamily: 'var(--font-display)', fontWeight: '800', fontSize: '0.85rem', margin: 0, color: 'var(--text)' }}>🌦️ Weather Based Crop Insurance (WBCIS)</h4>
+              <p style={{ fontSize: '0.68rem', color: 'var(--text3)', margin: '0.2rem 0 0.5rem' }}>Claims are automatically released when local rainfall, dry spells, or temperatures hit critical thresholds.</p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.72rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Premium Rate:</span><span>{wbcisRate}%</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Sum Insured:</span><span>₹{wbcisSumInsured.toLocaleString()}</span></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid #e2e8f0', paddingTop: '0.25rem', fontSize: '0.78rem', color: '#0f172a' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', borderTop: '1px solid var(--border)', paddingTop: '0.25rem', fontSize: '0.78rem', color: 'var(--text)' }}>
                   <span>Farmer Share Payable (Premium):</span>
                   <span>₹{wbcisFarmerPremium.toLocaleString()}</span>
                 </div>
@@ -322,38 +327,38 @@ export default function CropSecurity() {
       </div>
 
       {/* Suggested Good Banks & Insurers */}
-      <div className="db-card" style={{ border: '2px solid #0f172a', borderRadius: '18px', padding: '1.25rem', boxShadow: '4px 4px 0 0 #0f172a' }}>
-        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: '#0f172a', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+      <div className="db-card" style={{ border: '2px solid var(--text)', borderRadius: '18px', padding: '1.25rem', boxShadow: '4px 4px 0 0 var(--text)', background: 'var(--bg2)' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: 'var(--text)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           🏛️ Recommended Good Banks & Insurers for Farmers
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             <div>
-              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.25rem' }}>Top Agricultural Lending Banks</h4>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '0.5rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.25rem' }}>Top Agricultural Lending Banks</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {BANKS.map((b) => (
-                  <div key={b.name} style={{ background: '#f8fafc', padding: '0.6rem 0.8rem', borderRadius: '10px', fontSize: '0.7rem' }}>
+                  <div key={b.name} style={{ background: 'var(--bg3)', padding: '0.6rem 0.8rem', borderRadius: '10px', fontSize: '0.7rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '800' }}>
-                      <span style={{ color: '#0f172a' }}>{b.name}</span>
+                      <span style={{ color: 'var(--text)' }}>{b.name}</span>
                       <span style={{ color: '#f59e0b' }}>{b.rating}</span>
                     </div>
-                    <p style={{ margin: '0.2rem 0 0', color: '#475569', fontSize: '0.65rem', lineHeight: '1.4' }}>{b.perk}</p>
+                    <p style={{ margin: '0.2rem 0 0', color: 'var(--text2)', fontSize: '0.65rem', lineHeight: '1.4' }}>{b.perk}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             <div>
-              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '0.5rem', borderBottom: '2px solid #e2e8f0', paddingBottom: '0.25rem' }}>Top Crop Insurers (PMFBY Approved)</h4>
+              <h4 style={{ fontSize: '0.75rem', fontWeight: '800', color: 'var(--text3)', textTransform: 'uppercase', marginBottom: '0.5rem', borderBottom: '2px solid var(--border)', paddingBottom: '0.25rem' }}>Top Crop Insurers (PMFBY Approved)</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {INSURANCE_PROVIDERS.map((ins) => (
-                  <div key={ins.name} style={{ background: '#f8fafc', padding: '0.6rem 0.8rem', borderRadius: '10px', fontSize: '0.7rem' }}>
+                  <div key={ins.name} style={{ background: 'var(--bg3)', padding: '0.6rem 0.8rem', borderRadius: '10px', fontSize: '0.7rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: '800' }}>
-                      <span style={{ color: '#0f172a' }}>{ins.name}</span>
+                      <span style={{ color: 'var(--text)' }}>{ins.name}</span>
                       <span style={{ color: '#f59e0b' }}>{ins.rating}</span>
                     </div>
-                    <p style={{ margin: '0.2rem 0 0', color: '#475569', fontSize: '0.65rem', lineHeight: '1.4' }}>{ins.highlight}</p>
+                    <p style={{ margin: '0.2rem 0 0', color: 'var(--text2)', fontSize: '0.65rem', lineHeight: '1.4' }}>{ins.highlight}</p>
                   </div>
                 ))}
               </div>

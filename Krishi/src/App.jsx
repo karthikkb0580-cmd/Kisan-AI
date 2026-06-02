@@ -19,6 +19,10 @@ function App() {
   // Scroll to top on every view change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
+    const snapEl = document.querySelector('.snap-scroll-container')
+    if (snapEl) {
+      snapEl.scrollTo({ top: 0, behavior: 'instant' })
+    }
   }, [view])
 
   // Synchronize theme with DOM
