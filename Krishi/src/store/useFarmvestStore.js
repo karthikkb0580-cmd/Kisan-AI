@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export const useFarmvestStore = create((set, get) => ({
+export const useFarmvestStore = create((set) => ({
   // UI Theme & Routing
   theme: 'dark',
   view: 'home', // 'home' | 'dashboard' | 'login' | 'register'
@@ -10,16 +10,8 @@ export const useFarmvestStore = create((set, get) => ({
   language: 'en', // 'en' | 'hi' | 'pa' | 'te'
   setLanguage: (lang) => set({ language: lang }),
   
-  // User Profile
-  user: {
-    name: "Alex Mercer",
-    email: "alex.mercer@farmvest.ai",
-    balance: 78540.00,
-    totalInvested: 35000.00,
-    totalProfit: 4820.50,
-    dailyProfit: 142.80,
-    avatar: "AM"
-  },
+  // User Profile (initially loaded from localStorage)
+  user: JSON.parse(localStorage.getItem('krishi_user')) || null,
 
   // Carousel filters
   activeFilter: 'all',
@@ -160,6 +152,20 @@ export const useFarmvestStore = create((set, get) => ({
     return { theme: nextTheme };
   }),
 
+  setUser: (user) => {
+    if (user) {
+      localStorage.setItem('krishi_user', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('krishi_user')
+    }
+    set({ user })
+  },
+
+  logout: () => {
+    localStorage.removeItem('krishi_user')
+    set({ user: null, view: 'home' })
+  },
+
   setView: (view) => set({ view }),
   
   setActiveTab: (activeTab) => set({ activeTab }),
@@ -167,6 +173,7 @@ export const useFarmvestStore = create((set, get) => ({
   setActiveFilter: (activeFilter) => set({ activeFilter }),
 
   addInvestment: (farmId, amount) => set((state) => {
+    if (!state.user) return {};
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || state.user.balance < numericAmount) {
       return {};

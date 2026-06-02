@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { id: 'markets',       icon: '🛒', label: 'Nearby Markets' },
   { id: 'market-prices', icon: '💹', label: 'Market Prices' },
   { id: 'history',       icon: '📅', label: 'Crop History' },
+  { id: 'settings',      icon: '⚙️', label: 'Settings' },
 ]
 
 const SEED_REMINDERS = [
@@ -70,6 +71,24 @@ export default function Dashboard() {
   const completedTreatments = treatments.filter(t => t.status === 'done' || t.status === 'skipped')
 
   const switchTab = (id) => { setActiveTab(id); setSidebarOpen(false) }
+
+  const handleDeleteAccount = () => {
+    const confirmDelete = window.confirm(
+      "⚠️ WARNING: Are you absolutely sure you want to delete your operator account? This action is permanent and all your diagnostics data will be lost."
+    );
+    if (!confirmDelete) return;
+
+    // Delete user from localStorage mock DB
+    const users = JSON.parse(localStorage.getItem('krishi_users') || '[]')
+    const filtered = users.filter(u => u.id !== user.id)
+    localStorage.setItem('krishi_users', JSON.stringify(filtered))
+
+    // Wipe session logs
+    localStorage.removeItem('krishi_scan_logs')
+
+    alert("👋 Account permanently deleted. Thank you for using Krishi AI.");
+    setView('home');
+  };
 
   return (
     <div className={`db-root ${theme === 'dark' ? 'dark-theme' : 'light-theme'}`}>
@@ -272,6 +291,48 @@ export default function Dashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="db-section">
+            <h1 className="db-page-title">⚙️ Settings</h1>
+            <p className="db-page-sub">Manage your security profiles, data, and agricultural node controls.</p>
+
+            <div className="db-card" style={{ maxWidth: '600px', marginTop: '1.5rem' }}>
+              <h2 className="db-card-title">👤 Operator Profile</h2>
+              <div className="db-info-row"><span>Operator Name</span><strong>{user.name}</strong></div>
+              <div className="db-info-row"><span>Operator Email</span><strong>{user.email}</strong></div>
+              <div className="db-info-row"><span>Helpline Node</span><strong>{user.phone}</strong></div>
+              <div className="db-info-row"><span>Registered Date</span><span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN') : 'Active Session'}</span></div>
+            </div>
+
+            <div className="db-card" style={{ maxWidth: '600px', marginTop: '1.5rem', border: '2px solid #ef4444', background: 'rgba(239, 68, 68, 0.02)' }}>
+              <h3 style={{ color: '#ef4444', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                ⚠️ Danger Zone
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>
+                Uprooting your operator profile is permanent. All leaf scans, custom treatments, and dashboard reminders will be wiped instantly from the databases.
+              </p>
+              <button 
+                onClick={handleDeleteAccount}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1.25rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+                onMouseOver={(e) => e.target.style.background = '#dc2626'}
+                onMouseOut={(e) => e.target.style.background = '#ef4444'}
+              >
+                🗑️ Delete Account
+              </button>
             </div>
           </div>
         )}

@@ -7,12 +7,11 @@ export default function Header() {
   const {
     view,
     setView,
-    setActiveTab,
     theme,
     toggleTheme,
     language,
     setLanguage,
-    activeHeroSection
+    logout
   } = useFarmvestStore()
 
   const [scrolled, setScrolled] = useState(false)
@@ -39,10 +38,12 @@ export default function Header() {
   }, [])
 
   // Close menus on view/route changes
-  useEffect(() => {
+  const [prevView, setPrevView] = useState(view)
+  if (view !== prevView) {
+    setPrevView(view)
     setLangDropdownOpen(false)
     setMobileMenuOpen(false)
-  }, [view])
+  }
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  const handleLogOut = () => setView('home')
+  const handleLogOut = () => logout()
 
   // Translation helper
   const t = (key, fallback) => {

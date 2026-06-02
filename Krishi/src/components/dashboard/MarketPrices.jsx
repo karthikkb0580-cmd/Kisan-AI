@@ -100,7 +100,6 @@ const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
 
 export default function MarketPrices() {
   const [activeCrop, setActiveCrop] = useState(null)
-  const [userPos, setUserPos] = useState(null)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [sortedMarkets, setSortedMarkets] = useState([])
@@ -111,23 +110,18 @@ export default function MarketPrices() {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported by your browser.')
       setLocating(false)
-      const pos = DEFAULT_POS
-      setUserPos(pos)
-      computeDistances(pos)
+      computeDistances(DEFAULT_POS)
       return
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-        setUserPos(p)
         computeDistances(p)
         setLocating(false)
       },
       () => {
         setLocationError('Location access denied — showing default region (Amritsar).')
-        const p = DEFAULT_POS
-        setUserPos(p)
-        computeDistances(p)
+        computeDistances(DEFAULT_POS)
         setLocating(false)
       },
       { timeout: 8000, enableHighAccuracy: true }
@@ -150,7 +144,9 @@ export default function MarketPrices() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     getLocation()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const orderedMarkets = sortedMarkets.length > 0 

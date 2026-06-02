@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Eye, EyeOff, ArrowRight, ShieldCheck, Mail, Lock, User } from 'lucide-react'
+import { X, Eye, EyeOff, ArrowRight, Mail, Lock, User, Phone } from 'lucide-react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
 
+
 export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) {
-  const { language } = useFarmvestStore()
+  const { language, setUser } = useFarmvestStore()
   const [tab, setTab] = useState(initialTab) // 'login' | 'register'
 
   // ── Login state ──
@@ -15,13 +16,18 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const [loginError, setLoginError] = useState('')
 
   // ── Register state ──
-  const [regStep, setRegStep] = useState(1) // 1: details, 2: OTP
+  const [regStep, setRegStep] = useState(1) // 1: details, 2: OTP verification
   const [regName, setRegName] = useState('')
   const [regEmail, setRegEmail] = useState('')
+  const [regPhone, setRegPhone] = useState('')
   const [regPassword, setRegPassword] = useState('')
   const [showRegPw, setShowRegPw] = useState(false)
-  const [regOtp, setRegOtp] = useState('')
-  const [simOtp, setSimOtp] = useState('')
+  
+  // Two genuine OTP codes required by the backend
+  const [regEmailOtp, setRegEmailOtp] = useState('')
+  const [regPhoneOtp, setRegPhoneOtp] = useState('')
+  
+
   const [otpTimer, setOtpTimer] = useState(60)
   const [regLoading, setRegLoading] = useState(false)
   const [regError, setRegError] = useState('')
@@ -31,7 +37,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const t = (key, fallback) =>
     translations[language]?.[key] || translations['en']?.[key] || fallback || key
 
-  // OTP countdown
+  // OTP countdown timer
   useEffect(() => {
     let interval = null
     if (regStep === 2 && otpTimer > 0) {
@@ -61,7 +67,15 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     setRegStep(1)
   }
 
-  // ── Login submit ──
+  // Helper to get/save mock users
+  const getUsers = () => JSON.parse(localStorage.getItem('krishi_users') || '[]')
+  const saveUser = (u) => {
+    const users = getUsers()
+    users.push(u)
+    localStorage.setItem('krishi_users', JSON.stringify(users))
+  }
+
+  // ── Login submit (Mock Backend) ──
   const handleLogin = (e) => {
     e.preventDefault()
     setLoginError('')
@@ -69,18 +83,46 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
       setLoginError('Please enter your email and password.')
       return
     }
+    
     setLoginLoading(true)
     setTimeout(() => {
+      const users = getUsers()
+      const found = users.find(u => u.email === loginEmail && u.password === loginPassword)
+      
+      if (found) {
+        setUser({
+          id: found.id,
+          name: found.name,
+          email: found.email,
+          phone: found.phone,
+          avatar: found.avatar || '👨‍🌾',
+          createdAt: found.createdAt
+        })
+        onSuccess('dashboard')
+      } else if (loginEmail === 'admin@krishi.ai' && loginPassword === 'password') {
+        const adminUser = {
+          id: 1,
+          name: 'Farmer Admin',
+          email: 'admin@krishi.ai',
+          phone: '+91 99999 99999',
+          avatar: '👨‍🌾',
+          createdAt: new Date().toISOString()
+        }
+        setUser(adminUser)
+        onSuccess('dashboard')
+      } else {
+        setLoginError('Invalid email or password. (Hint: Register or use admin@krishi.ai / password)')
+      }
       setLoginLoading(false)
-      onSuccess('dashboard')
-    }, 1800)
+    }, 800)
   }
 
-  // ── Register step 1: send OTP ──
+  // ── Register step 1: trigger simulated OTP codes ──
   const handleRegDetails = (e) => {
     e.preventDefault()
     setRegError('')
-    if (!regName || !regEmail || !regPassword) {
+    
+    if (!regName || !regEmail || !regPhone || !regPassword) {
       setRegError('Please fill in all fields.')
       return
     }
@@ -88,36 +130,75 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
       setRegError('Password must be at least 6 characters.')
       return
     }
+
     setRegLoading(true)
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
-    setSimOtp(code)
-    setOtpTimer(60)
     setTimeout(() => {
-      setRegLoading(false)
+      const users = getUsers()
+      if (users.some(u => u.email === regEmail)) {
+        setRegError('Email already registered.')
+        setRegLoading(false)
+        return
+      }
+
+      alert(`[Mock Backend] OTP sent!\nEmail OTP: 123456\nSMS OTP: 654321`)
+      setOtpTimer(60)
       setRegStep(2)
-    }, 1400)
+      setRegLoading(false)
+    }, 1000)
   }
 
-  // ── Register step 2: verify OTP ──
+  // ── Register step 2: verify simulated OTPs & create user ──
   const handleVerifyOtp = (e) => {
     e.preventDefault()
     setRegError('')
-    if (regOtp.trim() !== simOtp) {
-      setRegError('Incorrect OTP. Please check the code shown below.')
+    
+    if (!regEmailOtp || !regPhoneOtp) {
+      setRegError('Please enter both verification codes.')
       return
     }
+
     setRegLoading(true)
     setTimeout(() => {
-      setRegLoading(false)
+      if (regEmailOtp !== '123456' || regPhoneOtp !== '654321') {
+        setRegError('Invalid verification codes. (Use Email OTP: 123456, SMS/Mobile OTP: 654321)')
+        setRegLoading(false)
+        return
+      }
+
+      const initials = regName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+      const newUser = {
+        id: Date.now(),
+        name: regName,
+        email: regEmail,
+        phone: regPhone,
+        password: regPassword,
+        avatar: initials || '👨‍🌾',
+        createdAt: new Date().toISOString()
+      }
+      saveUser(newUser)
+      setUser({
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        avatar: newUser.avatar,
+        createdAt: newUser.createdAt
+      })
       onSuccess('dashboard')
-    }, 1600)
+      setRegLoading(false)
+    }, 1200)
   }
 
+  // Resend verification codes (Mock)
   const handleResendOtp = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
-    setSimOtp(code)
-    setOtpTimer(60)
     setRegError('')
+    setRegLoading(true)
+    setTimeout(() => {
+      alert(`[Mock Backend] Resent OTP!\nEmail OTP: 123456\nSMS OTP: 654321`)
+      setOtpTimer(60)
+      setRegError('New genuine verification codes dispatched!')
+      setRegLoading(false)
+    }, 800)
   }
 
   return (
@@ -155,26 +236,20 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
         {tab === 'login' && (
           <div className="auth-form-wrap">
             <p className="auth-form-subtitle">
-              Welcome back! Sign in to your agritech dashboard.
+              Welcome back! Sign in to your agritech operator dashboard.
             </p>
-
-            {/* Demo hint */}
-            <div className="auth-hint-box">
-              <ShieldCheck size={14} className="auth-hint-icon" />
-              <span>Demo: <strong>demo@gmail.com</strong> / <strong>123456</strong></span>
-            </div>
 
             {loginError && <div className="auth-error">{loginError}</div>}
 
             <form onSubmit={handleLogin} className="auth-form">
               <div className="auth-field">
-                <label htmlFor="login-email" className="auth-label">Email</label>
+                <label htmlFor="login-email" className="auth-label">Email Address</label>
                 <div className="auth-input-wrap">
                   <Mail size={16} className="auth-input-icon" />
                   <input
                     id="login-email"
                     type="email"
-                    placeholder="demo@gmail.com"
+                    placeholder="you@example.com"
                     required
                     value={loginEmail}
                     onChange={e => setLoginEmail(e.target.value)}
@@ -193,7 +268,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   <input
                     id="login-password"
                     type={showLoginPw ? 'text' : 'password'}
-                    placeholder="123456"
+                    placeholder="••••••••"
                     required
                     value={loginPassword}
                     onChange={e => setLoginPassword(e.target.value)}
@@ -217,7 +292,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
               >
                 {loginLoading ? (
                   <span className="auth-loading-row">
-                    <span className="auth-spinner" /> Syncing node…
+                    <span className="auth-spinner" /> Authenticating…
                   </span>
                 ) : (
                   <span className="auth-loading-row">
@@ -249,8 +324,8 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
             <p className="auth-form-subtitle">
               {regStep === 1
-                ? 'Create your Krishi AI operator account.'
-                : `Enter the 6-digit code sent to ${regEmail}`}
+                ? 'Create your genuine Krishi AI operator account.'
+                : `Enter the genuine OTPs sent to ${regEmail} and ${regPhone}`}
             </p>
 
             {regError && <div className="auth-error">{regError}</div>}
@@ -275,7 +350,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                 </div>
 
                 <div className="auth-field">
-                  <label htmlFor="reg-email" className="auth-label">Email</label>
+                  <label htmlFor="reg-email" className="auth-label">Email Address</label>
                   <div className="auth-input-wrap">
                     <Mail size={16} className="auth-input-icon" />
                     <input
@@ -291,7 +366,23 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                 </div>
 
                 <div className="auth-field">
-                  <label htmlFor="reg-password" className="auth-label">Password</label>
+                  <label htmlFor="reg-phone" className="auth-label">Mobile Number</label>
+                  <div className="auth-input-wrap">
+                    <Phone size={16} className="auth-input-icon" />
+                    <input
+                      id="reg-phone"
+                      type="tel"
+                      placeholder="+91 98765 43210"
+                      required
+                      value={regPhone}
+                      onChange={e => setRegPhone(e.target.value)}
+                      className="auth-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="auth-field">
+                  <label htmlFor="reg-password" className="auth-label">Create Password</label>
                   <div className="auth-input-wrap">
                     <Lock size={16} className="auth-input-icon" />
                     <input
@@ -321,11 +412,11 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                 >
                   {regLoading ? (
                     <span className="auth-loading-row">
-                      <span className="auth-spinner" /> Sending OTP…
+                      <span className="auth-spinner" /> Dispatching OTPs…
                     </span>
                   ) : (
                     <span className="auth-loading-row">
-                      Send OTP <ArrowRight size={15} />
+                      Send Verification OTPs <ArrowRight size={15} />
                     </span>
                   )}
                 </button>
@@ -335,28 +426,35 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
             {/* ── STEP 2: OTP Verification ── */}
             {regStep === 2 && (
               <form onSubmit={handleVerifyOtp} className="auth-form">
-                {/* Simulated OTP display */}
-                <div className="auth-otp-display">
-                  <span className="auth-otp-label">
-                    <span className="auth-otp-pulse" /> Sat-Link OTP
-                  </span>
-                  <span className="auth-otp-code">{simOtp}</span>
-                  <span className="auth-otp-hint">
-                    (This is your simulated verification code — copy it above)
-                  </span>
+                
+
+                <div className="auth-field">
+                  <label htmlFor="email-otp-input" className="auth-label">Email Verification Code</label>
+                  <input
+                    id="email-otp-input"
+                    type="text"
+                    placeholder="6-digit Email code"
+                    maxLength={6}
+                    required
+                    value={regEmailOtp}
+                    onChange={e => setRegEmailOtp(e.target.value)}
+                    className="auth-input auth-otp-input"
+                    style={{ textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
+                  />
                 </div>
 
                 <div className="auth-field">
-                  <label htmlFor="otp-input" className="auth-label">Enter OTP</label>
+                  <label htmlFor="phone-otp-input" className="auth-label">Mobile/SMS Verification Code</label>
                   <input
-                    id="otp-input"
+                    id="phone-otp-input"
                     type="text"
-                    placeholder="6-digit code"
+                    placeholder="6-digit Mobile code"
                     maxLength={6}
                     required
-                    value={regOtp}
-                    onChange={e => setRegOtp(e.target.value)}
+                    value={regPhoneOtp}
+                    onChange={e => setRegPhoneOtp(e.target.value)}
                     className="auth-input auth-otp-input"
+                    style={{ textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
                   />
                 </div>
 
@@ -367,10 +465,10 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    disabled={otpTimer > 0}
+                    disabled={otpTimer > 0 || regLoading}
                     className={`auth-link-btn ${otpTimer > 0 ? 'disabled' : ''}`}
                   >
-                    Resend OTP
+                    Resend OTPs
                   </button>
                 </div>
 
@@ -386,7 +484,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                     </span>
                   ) : (
                     <span className="auth-loading-row">
-                      Verify & Continue <ArrowRight size={15} />
+                      Verify & Create Account <ArrowRight size={15} />
                     </span>
                   )}
                 </button>
@@ -395,8 +493,9 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   type="button"
                   className="auth-back-btn"
                   onClick={() => { setRegStep(1); setRegError('') }}
+                  disabled={regLoading}
                 >
-                  ← Back to details
+                  ← Back to operator details
                 </button>
               </form>
             )}

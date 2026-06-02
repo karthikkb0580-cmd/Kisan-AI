@@ -9,14 +9,12 @@ import videoTractor from '../../assets/Tractor_ploughing_soil_animation_20260525
 import videoHarvest from '../../assets/real harvest.mp4'
 
 export default function HeroSection() {
-  const { setView, language, activeHeroSection, setActiveHeroSection } = useFarmvestStore()
+  const { setView, language, setActiveHeroSection } = useFarmvestStore()
   const containerRef = useRef(null)
 
   const t = (key, fallback) =>
     translations[language]?.[key] || translations['en']?.[key] || fallback || key
 
-  const scrollToSection = (index) =>
-    document.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ behavior: 'smooth' })
 
   useEffect(() => {
     const container = containerRef.current

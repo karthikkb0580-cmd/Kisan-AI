@@ -2017,6 +2017,7 @@ html.dark-theme .text-slate-600,
 .hero-title-accent {
   background: linear-gradient(135deg, #4ade80 0%, #22d3ee 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2222,6 +2223,7 @@ html.dark-theme .text-slate-600,
   margin-bottom: 1rem;
   background: linear-gradient(135deg, #ffffff 55%, var(--accent, #4ade80) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2339,6 +2341,7 @@ html.dark-theme .text-slate-600,
 .light-theme .feat-title {
   background: linear-gradient(135deg, #0f172a 55%, var(--accent, #10b981) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -2453,6 +2456,7 @@ html.dark-theme .text-slate-600,
   text-transform: uppercase;
   background: linear-gradient(135deg, #4ade80 0%, #60a5fa 50%, #2dd4bf 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 1.5rem;
   letter-spacing: -0.05em;
@@ -2466,6 +2470,7 @@ html.dark-theme .text-slate-600,
   text-transform: uppercase;
   background: linear-gradient(135deg, #a7f3d0 0%, #38bdf8 50%, #4ade80 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 1.5rem;
   letter-spacing: -0.04em;

@@ -5,7 +5,7 @@ import { translations } from '../../translations'
  * Login — Sign-in screen.
  * Dynamic translations enabled.
  */
-export default function Login({ setView, theme }) {
+export default function Login({ setView }) {
   const { language } = useFarmvestStore()
 
   const t = (key, fallback) => {

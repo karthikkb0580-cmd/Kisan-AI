@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -67,7 +67,7 @@ const kmDist = (lat1, lng1, lat2, lng2) => {
 // Recenter map component
 function Recenter({ center }) {
   const map = useMap()
-  useEffect(() => { map.setView(center, 12) }, [center])
+  useEffect(() => { map.setView(center, 12) }, [center, map])
   return null
 }
 
@@ -83,7 +83,6 @@ export default function NearbyMarkets() {
   const [locationError, setLocationError] = useState('')
   const [locating, setLocating] = useState(false)
   const [markets, setMarkets] = useState([])
-  const [bestMarket, setBestMarket] = useState(null)
   const [selectedCrop, setSelectedCrop] = useState('wheat')
   const [nearbyOnly, setNearbyOnly] = useState(true)
 
@@ -102,9 +101,6 @@ export default function NearbyMarkets() {
     const mkts = nearby.length >= 2 ? nearby : all
     setMarkets(mkts)
     setNearbyOnly(nearby.length >= 2)
-    // Best = highest price for selected crop
-    const best = [...mkts].sort((a, b) => b[selectedCrop] - a[selectedCrop])[0]
-    setBestMarket(best)
   }
 
   const getLocation = () => {
@@ -138,15 +134,15 @@ export default function NearbyMarkets() {
 
   // Load default on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     getLocation()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Recompute best market when crop selection changes
-  useEffect(() => {
-    if (markets.length) {
-      const best = [...markets].sort((a, b) => b[selectedCrop] - a[selectedCrop])[0]
-      setBestMarket(best)
-    }
+  // Derive best market from current crop selection (avoids setState-in-effect)
+  const bestMarket = useMemo(() => {
+    if (!markets.length) return null
+    return [...markets].sort((a, b) => b[selectedCrop] - a[selectedCrop])[0]
   }, [selectedCrop, markets])
 
   const center = userPos ? [userPos.lat, userPos.lng] : [DEFAULT_POS.lat, DEFAULT_POS.lng]

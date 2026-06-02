@@ -103,7 +103,6 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
   const [inputMoisture, setInputMoisture] = useState('moist')
   const [inputPractice, setInputPractice] = useState('traditional')
 
-  const [formSubmitted, setFormSubmitted] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
 
@@ -150,20 +149,21 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLocation()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Analyze soil form input
   const handleSoilAnalysis = (e) => {
     e.preventDefault()
     setAnalyzing(true)
-    setFormSubmitted(true)
     
     setTimeout(() => {
       // Logic mapping user observations to nutrient indexes and suggestions
       let nutrients = { n: 'Medium', p: 'Medium', k: 'Medium', pH: '6.8' }
-      let drainage = 'Moderate'
-      let matchingCrops = []
+      let drainage
+      let matchingCrops
       let correctiveActions = []
 
       // 1. Soil Type mapping

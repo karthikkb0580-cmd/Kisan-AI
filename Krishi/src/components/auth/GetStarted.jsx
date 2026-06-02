@@ -5,7 +5,7 @@ import { translations } from '../../translations'
  * GetStarted — Registration / onboarding screen.
  * Dynamic translations enabled.
  */
-export default function GetStarted({ setView, theme }) {
+export default function GetStarted({ setView }) {
   const { language } = useFarmvestStore()
 
   const t = (key, fallback) => {
