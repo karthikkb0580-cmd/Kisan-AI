@@ -47,7 +47,7 @@ function App() {
   const showAuthModal = view === 'login' || view === 'get-started'
 
   return (
-    <div>
+    <div className={view === 'dashboard' ? 'app-dashboard-active' : ''}>
       {/* ── Global navigation ── */}
       <Header />
 

@@ -6856,3 +6856,198 @@ html.dark-theme .text-slate-600,
     font-size: 1.3rem !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   PREMIUM MOBILE OVERHAUL (max-width: 1023px)
+   !! Completely scopes all rules to mobile and tablet viewports !!
+   !! Desktop viewports (1024px+) are 100% untouched and pristine !!
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* 1. Prevent Double Headers in Dashboard View */
+  .app-dashboard-active .header-pro {
+    display: none !important;
+  }
+
+  /* 2. Unified Dashboard Fixed Topbar */
+  .db-topbar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 60px !important;
+    z-index: 100 !important;
+    background: #ffffff !important;
+    border-bottom: 2px solid #e2e8f0 !important;
+    padding: 0 1.25rem !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+
+  .dark-theme .db-topbar {
+    background: #0e1728 !important;
+    border-bottom-color: #1e293b !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  .db-topbar-title {
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+
+  .db-hamburger {
+    margin-right: 0.5rem !important;
+    padding: 6px !important;
+  }
+
+  /* 3. Perfect Drawer-Style Dashboard Sidebar */
+  .db-sidebar {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    width: 280px !important;
+    z-index: 1000 !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    box-shadow: 16px 0 48px rgba(15, 23, 42, 0.12) !important;
+    border-right: 3px solid #0f172a !important;
+    background: #ffffff !important;
+    padding: 1.5rem 1rem !important;
+  }
+
+  .dark-theme .db-sidebar {
+    background: #0b132b !important;
+    box-shadow: 16px 0 48px rgba(0, 0, 0, 0.6) !important;
+    border-right-color: #22c55e !important;
+  }
+
+  .db-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  /* 4. Elegant Glassmorphic Sidebar Overlay */
+  .db-sidebar-overlay {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.4) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    z-index: 999 !important;
+    animation: fade-in 0.25s ease both !important;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  /* 5. Main Dashboard Padding Adjustments */
+  .db-main {
+    margin-left: 0 !important;
+    padding: 1.25rem 1rem 3rem !important;
+    padding-top: 80px !important; /* Give space for fixed topbar */
+  }
+
+  /* 6. Dashboard Widget Scaling */
+  .db-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+
+  .db-stat-card {
+    padding: 1rem 0.85rem !important;
+    border-radius: 12px !important;
+  }
+
+  .db-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .dash-treatments-panel {
+    padding: 1rem !important;
+  }
+
+  .dash-treat-item {
+    padding: 0.75rem !important;
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+
+  .dash-treat-btns {
+    width: 100% !important;
+    justify-content: flex-end !important;
+    margin-top: 0.25rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  /* 7. Animated Features Mobile Stack on Landing Page */
+  .feature-section,
+  .feature-section.feature-flipped {
+    flex-direction: column !important;
+    padding: 3rem 1.25rem !important;
+    gap: 1.5rem !important;
+    height: auto !important;
+    min-height: 100vh !important;
+    justify-content: center !important;
+    align-items: stretch !important;
+  }
+
+  .feat-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: unset !important;
+    max-height: unset !important;
+    flex: none !important;
+  }
+
+  .feat-card-info {
+    padding: 2.25rem 1.5rem !important;
+  }
+
+  /* Retain and display high-fidelity animation videos on mobile stacked below text */
+  .feat-card-video {
+    display: block !important;
+    height: 240px !important;
+    min-height: 240px !important;
+    border-radius: 1.5rem !important;
+    margin-top: 0.5rem !important;
+    border: 2px solid #0f172a !important;
+    box-shadow: 4px 4px 0 0 #0f172a !important;
+  }
+
+  .dark-theme .feat-card-video {
+    border-color: #22c55e !important;
+    box-shadow: 4px 4px 0 0 #22c55e !important;
+  }
+
+  .feat-title {
+    font-size: 1.6rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .feat-subtitle {
+    font-size: 0.85rem !important;
+    line-height: 1.55 !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* 8. Unified Typography Scaling */
+  .db-page-title {
+    font-size: 1.4rem !important;
+  }
+
+  .db-page-sub {
+    font-size: 0.8rem !important;
+  }
+}
