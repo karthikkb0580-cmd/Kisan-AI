@@ -5,13 +5,20 @@ const MARKETS = [
 ]
 
 const MARKET_COORDS = {
-  'Amritsar APMC': { lat: 31.634, lng: 74.872 },
-  'Ludhiana Grain': { lat: 30.901, lng: 75.857 },
-  'Jalandhar Mandi': { lat: 31.326, lng: 75.576 },
-  'Patiala Wholesale': { lat: 30.340, lng: 76.380 },
-  'Ferozepur Mandi': { lat: 30.924, lng: 74.622 },
-  'Bathinda Oil': { lat: 30.211, lng: 74.945 }
+  'Amritsar APMC':    { lat: 31.634, lng: 74.872 },
+  'Ludhiana Grain':   { lat: 30.901, lng: 75.857 },
+  'Jalandhar Mandi':  { lat: 31.326, lng: 75.576 },
+  'Patiala Wholesale':{ lat: 30.340, lng: 76.380 },
+  'Ferozepur Mandi':  { lat: 30.924, lng: 74.622 },
+  'Bathinda Oil':     { lat: 30.211, lng: 74.945 },
 }
+
+/* Build Google Maps truck-route URL (driving = suitable for trucks) */
+const truckRouteUrl = (userLat, userLng, destLat, destLng, destName) =>
+  `https://www.google.com/maps/dir/?api=1` +
+  `&origin=${userLat},${userLng}` +
+  `&destination=${encodeURIComponent(destName + ' ' + destLat + ',' + destLng)}` +
+  `&travelmode=driving`
 
 const CROPS = [
   {
@@ -103,6 +110,7 @@ export default function MarketPrices() {
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [sortedMarkets, setSortedMarkets] = useState([])
+  const [userPos, setUserPos] = useState(null)
 
   const getLocation = () => {
     setLocating(true)
@@ -110,17 +118,20 @@ export default function MarketPrices() {
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported by your browser.')
       setLocating(false)
+      setUserPos(DEFAULT_POS)
       computeDistances(DEFAULT_POS)
       return
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setUserPos(p)
         computeDistances(p)
         setLocating(false)
       },
       () => {
         setLocationError('Location access denied — showing default region (Amritsar).')
+        setUserPos(DEFAULT_POS)
         computeDistances(DEFAULT_POS)
         setLocating(false)
       },
@@ -182,9 +193,20 @@ export default function MarketPrices() {
             <span className="mp-nearest-badge" style={{ background: '#22c55e', color: '#0f172a', fontWeight: '800', fontSize: '0.62rem', padding: '0.2rem 0.5rem', borderRadius: '4px', textTransform: 'uppercase', marginRight: '0.5rem' }}>📍 Closest Market Prices</span>
             <h2 className="mp-nearest-title" style={{ fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.25rem', display: 'inline-block', margin: '0.25rem 0' }}>{nearestMarket.name}</h2>
           </div>
-          <p className="mp-nearest-meta" style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: '700' }}>
-            📏 Just <strong style={{ color: '#22c55e' }}>{nearestMarket.dist} km</strong> away
-          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+            <p className="mp-nearest-meta" style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: '700' }}>
+              📏 Just <strong style={{ color: '#22c55e' }}>{nearestMarket.dist} km</strong> away
+            </p>
+            {userPos && MARKET_COORDS[nearestMarket.name] && (
+              <a
+                href={truckRouteUrl(userPos.lat, userPos.lng, MARKET_COORDS[nearestMarket.name].lat, MARKET_COORDS[nearestMarket.name].lng, nearestMarket.name)}
+                target="_blank" rel="noreferrer"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', background: '#22c55e', color: '#fff', fontWeight: 800, fontSize: '0.72rem', padding: '0.4rem 0.75rem', borderRadius: '7px', textDecoration: 'none' }}
+              >
+                🚛 Get Truck Route
+              </a>
+            )}
+          </div>
         </div>
 
         <div className="mp-nearest-prices-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
@@ -228,14 +250,26 @@ export default function MarketPrices() {
           <thead>
             <tr>
               <th className="mp-th mp-th-crop">Crop</th>
-              {orderedMarkets.map((m, index) => (
-                <th key={m.name} className="mp-th" style={{ background: index === 0 ? 'rgba(34, 197, 94, 0.08)' : 'transparent' }}>
-                  <span style={{ display: 'block', fontWeight: '800' }}>{m.name}</span>
-                  <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>
-                    {index === 0 ? '📍 Nearest' : `📏 ${m.dist} km`}
-                  </span>
-                </th>
-              ))}
+              {orderedMarkets.map((m, index) => {
+                const coords = MARKET_COORDS[m.name]
+                const url = userPos && coords
+                  ? truckRouteUrl(userPos.lat, userPos.lng, coords.lat, coords.lng, m.name)
+                  : null
+                return (
+                  <th key={m.name} className="mp-th" style={{ background: index === 0 ? 'rgba(34, 197, 94, 0.08)' : 'transparent' }}>
+                    <span style={{ display: 'block', fontWeight: '800' }}>{m.name}</span>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700' }}>
+                      {index === 0 ? '📍 Nearest' : `📏 ${m.dist} km`}
+                    </span>
+                    {url && (
+                      <a href={url} target="_blank" rel="noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        style={{ display:'inline-flex', alignItems:'center', gap:'0.2rem', marginTop:'0.3rem', background:'#0f172a', color:'#22c55e', fontSize:'0.58rem', fontWeight:800, padding:'0.2rem 0.4rem', borderRadius:'4px', textDecoration:'none', whiteSpace:'nowrap' }}
+                      >🚛 Truck Route</a>
+                    )}
+                  </th>
+                )
+              })}
               <th className="mp-th">7d Trend</th>
               <th className="mp-th">AI Signal</th>
             </tr>

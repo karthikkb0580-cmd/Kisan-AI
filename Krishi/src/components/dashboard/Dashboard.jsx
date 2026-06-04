@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
+import { UsersAPI, AuthAPI } from '../../services/api'
 import MarketPrices from './MarketPrices'
 import CropScanner from './CropScanner'
 import CropSecurity from './CropSecurity'
@@ -43,11 +44,24 @@ function MapLoading() {
 }
 
 export default function Dashboard() {
-  const { user, setView, theme } = useFarmvestStore()
+  const { user, setUser, setView, theme } = useFarmvestStore()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [time, setTime] = useState(new Date())
   const [treatments, setTreatments] = useState(SEED_REMINDERS)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Settings states
+  const [photoLoading, setPhotoLoading] = useState(false)
+  const [photoError, setPhotoError] = useState('')
+  const [photoSuccess, setPhotoSuccess] = useState('')
+
+  const [secChannel, setSecChannel] = useState('email')
+  const [secContact, setSecContact] = useState('')
+  const [secOtpCode, setSecOtpCode] = useState('')
+  const [secOtpSent, setSecOtpSent] = useState(false)
+  const [secLoading, setSecLoading] = useState(false)
+  const [secError, setSecError] = useState('')
+  const [secSuccess, setSecSuccess] = useState('')
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
@@ -98,6 +112,84 @@ export default function Dashboard() {
     setView('home');
   };
 
+  // Helper to render user avatars
+  const renderAvatar = (avatar, name) => {
+    if (typeof avatar === 'string' && (avatar.startsWith('http://') || avatar.startsWith('https://') || avatar.startsWith('data:'))) {
+      return <img src={avatar} alt="Profile" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+    }
+    return avatar || (name ? name.slice(0, 2).toUpperCase() : 'U')
+  }
+
+  // Handle secondary contact verification OTP send
+  const handleSendVerifyOTP = async (e) => {
+    e.preventDefault()
+    setSecError('')
+    setSecSuccess('')
+    if (!secContact) { setSecError('Please enter contact info.'); return }
+    setSecLoading(true)
+    try {
+      await UsersAPI.sendContactVerifyOTP(secChannel, secContact)
+      setSecOtpSent(true)
+      setSecSuccess(`Verification OTP sent successfully to ${secContact}. Check your inbox or Python terminal window.`)
+    } catch (err) {
+      setSecError(err.message || 'Failed to send OTP')
+    } finally {
+      setSecLoading(false)
+    }
+  }
+
+  // Handle secondary contact verification OTP confirm
+  const handleConfirmVerifyOTP = async (e) => {
+    e.preventDefault()
+    setSecError('')
+    setSecSuccess('')
+    if (!secOtpCode) { setSecError('Please enter the verification code.'); return }
+    setSecLoading(true)
+    try {
+      await UsersAPI.confirmContactVerifyOTP(secChannel, secContact, secOtpCode)
+      
+      // Update profile locally by fetching fresh details
+      const fresh = await AuthAPI.getMe()
+      setUser({
+        id:            fresh.id,
+        name:          fresh.full_name,
+        email:         fresh.email || '',
+        phone:         fresh.phone || '',
+        avatar:        fresh.profile_photo_url || fresh.full_name.slice(0, 2).toUpperCase(),
+        emailVerified: fresh.email_verified,
+        phoneVerified: fresh.phone_verified,
+        createdAt:     fresh.created_at,
+      })
+
+      setSecSuccess('Secondary contact verified and linked successfully!')
+      setSecContact('')
+      setSecOtpCode('')
+      setSecOtpSent(false)
+    } catch (err) {
+      setSecError(err.message || 'Invalid code')
+    } finally {
+      setSecLoading(false)
+    }
+  }
+
+  // Handle photo upload
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoError('')
+    setPhotoSuccess('')
+    setPhotoLoading(true)
+    try {
+      const res = await UsersAPI.uploadPhoto(file)
+      setUser({ ...user, avatar: res.profile_photo_url })
+      setPhotoSuccess('Profile photo uploaded and updated successfully!')
+    } catch (err) {
+      setPhotoError(err.message || 'Failed to upload photo')
+    } finally {
+      setPhotoLoading(false)
+    }
+  }
+
   return (
     <div className={`db-root ${theme === 'dark' ? 'dark-theme' : 'light-theme'}`}>
 
@@ -106,11 +198,13 @@ export default function Dashboard() {
 
       {/* SIDEBAR */}
       <aside className={`db-sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="db-user-card">
-          <div className="db-avatar">{user.avatar}</div>
+        <div className="db-user-card" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem' }}>
+          <div className="db-avatar" style={{ width: '40px', height: '40px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {renderAvatar(user?.avatar, user?.name)}
+          </div>
           <div className="db-user-info">
-            <p className="db-user-name">{user.name}</p>
-            <p className="db-user-email">{user.email}</p>
+            <p className="db-user-name">{user?.name}</p>
+            <p className="db-user-email" style={{ fontSize: '0.7rem' }}>{user?.email || user?.phone}</p>
           </div>
         </div>
         <nav className="db-nav">
@@ -148,7 +242,7 @@ export default function Dashboard() {
             <div className="dash-clock-bar">
               <div>
                 <h1 className="db-page-title" style={{ margin:0 }}>
-                  Good {time.getHours() < 12 ? 'morning' : time.getHours() < 17 ? 'afternoon' : 'evening'}, {user.name.split(' ')[0]} 👋
+                  Good {time.getHours() < 12 ? 'morning' : time.getHours() < 17 ? 'afternoon' : 'evening'}, {user?.name?.split(' ')[0]} 👋
                 </h1>
                 <p className="db-page-sub" style={{ margin:0 }}>Real-time overview of your farm operations.</p>
               </div>
@@ -308,12 +402,114 @@ export default function Dashboard() {
             <h1 className="db-page-title">⚙️ Settings</h1>
             <p className="db-page-sub">Manage your security profiles, data, and agricultural node controls.</p>
 
-            <div className="db-card" style={{ maxWidth: '600px' }}>
-              <h2 className="db-card-title">👤 Operator Profile</h2>
-              <div className="db-info-row"><span>Operator Name</span><strong>{user.name}</strong></div>
-              <div className="db-info-row"><span>Operator Email</span><strong>{user.email}</strong></div>
-              <div className="db-info-row"><span>Helpline Node</span><strong>{user.phone}</strong></div>
-              <div className="db-info-row"><span>Registered Date</span><span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN') : 'Active Session'}</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Operator Details & Photo Card */}
+              <div className="db-card">
+                <h2 className="db-card-title">👤 Operator Profile</h2>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                  <div style={{ width: '60px', height: '60px', borderRadius: '50%', border: '2px solid var(--accent)', background: 'var(--bg3)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {renderAvatar(user?.avatar, user?.name)}
+                  </div>
+                  <div>
+                    <label style={{ display: 'inline-block', background: 'var(--accent)', color: '#0f172a', fontWeight: 'bold', fontSize: '0.72rem', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer' }}>
+                      📷 {photoLoading ? 'Uploading…' : 'Upload New Photo'}
+                      <input type="file" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} disabled={photoLoading} />
+                    </label>
+                    {photoError && <p style={{ color: '#ef4444', fontSize: '0.68rem', margin: '0.2rem 0 0' }}>{photoError}</p>}
+                    {photoSuccess && <p style={{ color: '#22c55e', fontSize: '0.68rem', margin: '0.2rem 0 0' }}>{photoSuccess}</p>}
+                  </div>
+                </div>
+
+                <div className="db-info-row"><span>Operator Name</span><strong>{user?.name}</strong></div>
+                <div className="db-info-row">
+                  <span>Operator Email</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <strong>{user?.email || 'Not Linked'}</strong>
+                    {user?.emailVerified ? <span style={{ color: '#22c55e', fontSize: '0.68rem' }}>🟢 Verified</span> : user?.email ? <span style={{ color: '#ef4444', fontSize: '0.68rem' }}>🔴 Unverified</span> : null}
+                  </div>
+                </div>
+                <div className="db-info-row">
+                  <span>Helpline Node</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <strong>{user?.phone || 'Not Linked'}</strong>
+                    {user?.phoneVerified ? <span style={{ color: '#22c55e', fontSize: '0.68rem' }}>🟢 Verified</span> : user?.phone ? <span style={{ color: '#ef4444', fontSize: '0.68rem' }}>🔴 Unverified</span> : null}
+                  </div>
+                </div>
+                <div className="db-info-row"><span>Registered Date</span><span>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN') : 'Active Session'}</span></div>
+              </div>
+
+              {/* Secure OTP-Verified Contact Card */}
+              <div className="db-card" style={{ border: '2.5px solid var(--accent)', boxShadow: '4px 4px 0px 0px var(--accent)' }}>
+                <h2 className="db-card-title" style={{ color: 'var(--accent)' }}>🔑 Verify Secondary Contact</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.4 }}>
+                  Add or update secondary email or phone nodes with a secure OTP check to receive automated crop disease alert callbacks.
+                </p>
+
+                {secError && <div className="db-alert red" style={{ marginBottom: '0.75rem', fontSize: '0.72rem' }}>⚠️ {secError}</div>}
+                {secSuccess && <div className="db-alert green" style={{ marginBottom: '0.75rem', fontSize: '0.72rem' }}>🟢 {secSuccess}</div>}
+
+                <form onSubmit={secOtpSent ? handleConfirmVerifyOTP : handleSendVerifyOTP} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {!secOtpSent ? (
+                    <>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.25rem', color: 'var(--text2)' }}>Verification Channel</label>
+                        <select 
+                          value={secChannel} 
+                          onChange={(e) => setSecChannel(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.75rem', fontWeight: 'bold' }}
+                        >
+                          <option value="email">📧 Email Node</option>
+                          <option value="sms">📱 Mobile Node (E.164: +91…)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.25rem', color: 'var(--text2)' }}>Contact Address / Phone</label>
+                        <input 
+                          type={secChannel === 'email' ? 'email' : 'tel'} 
+                          placeholder={secChannel === 'email' ? 'helper@domain.com' : '+919876543210'} 
+                          required 
+                          value={secContact}
+                          onChange={(e) => setSecContact(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.75rem', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 'bold', marginBottom: '0.25rem', color: 'var(--text2)' }}>6-Digit Verification Code</label>
+                      <input 
+                        type="text" 
+                        placeholder="123456" 
+                        maxLength={6} 
+                        required 
+                        value={secOtpCode}
+                        onChange={(e) => setSecOtpCode(e.target.value)}
+                        style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.9rem', fontWeight: 'bold', textAlign: 'center', letterSpacing: '4px', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit" 
+                    disabled={secLoading} 
+                    className="scanner-btn" 
+                    style={{ background: 'var(--accent)', color: '#0f172a', fontWeight: 'bold', border: 'none', borderRadius: '8px', padding: '0.6rem', fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {secLoading ? 'Processing…' : secOtpSent ? 'Verify & Link Contact' : 'Send Verification OTP'}
+                  </button>
+
+                  {secOtpSent && (
+                    <button 
+                      type="button" 
+                      onClick={() => setSecOtpSent(false)} 
+                      style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer', padding: '0.3rem', borderRadius: '6px' }}
+                    >
+                      ← Change Contact Info
+                    </button>
+                  )}
+                </form>
+              </div>
             </div>
 
             <div className="db-card" style={{ maxWidth: '600px', border: '2px solid #ef4444', background: 'rgba(239, 68, 68, 0.02)' }}>

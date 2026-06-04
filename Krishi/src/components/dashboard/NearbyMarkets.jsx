@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -12,342 +12,462 @@ L.Icon.Default.mergeOptions({
 })
 
 // Custom colored div icon for markets
-const marketIcon = (color = '#22c55e', best = false) =>
+const marketIcon = (color = '#3b82f6', active = false) =>
   L.divIcon({
     className: '',
     html: `<div style="
-      width:${best ? '20' : '14'}px;
-      height:${best ? '20' : '14'}px;
-      background:${color};
-      border:2.5px solid #0f172a;
-      border-radius:50%;
-      box-shadow:0 2px 8px rgba(0,0,0,0.35);
+      width: ${active ? '24px' : '16px'};
+      height: ${active ? '24px' : '16px'};
+      background: ${color};
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify: center;
+      transition: all 0.2s ease;
     "></div>`,
-    iconSize: [best ? 20 : 14, best ? 20 : 14],
-    iconAnchor: [best ? 10 : 7, best ? 10 : 7],
+    iconSize: [active ? 24 : 16, active ? 24 : 16],
+    iconAnchor: [active ? 12 : 8, active ? 12 : 8],
   })
 
 // User location icon
 const userIcon = L.divIcon({
   className: '',
   html: `<div style="
-    width:18px;height:18px;
-    background:#3b82f6;
-    border:3px solid #fff;
-    border-radius:50%;
-    box-shadow:0 0 0 4px rgba(59,130,246,0.3);
+    width: 20px;
+    height: 20px;
+    background: #ef4444;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.4);
   "></div>`,
-  iconSize: [18, 18],
-  iconAnchor: [9, 9],
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
 })
 
-// Generate mock markets seeded around user position
-const generateMarkets = (lat, lng) => [
-  { id: 1, name: 'Amritsar APMC Mandi',   lat: lat + 0.11, lng: lng + 0.09, open: true,  wheat: 2180, rice: 3120, cotton: 6600, maize: 1890, mustard: 5350, profit: 'High'   },
-  { id: 2, name: 'Ludhiana Grain Market', lat: lat - 0.14, lng: lng + 0.21, open: true,  wheat: 2205, rice: 3050, cotton: 6820, maize: 1940, mustard: 5180, profit: 'Highest' },
-  { id: 3, name: 'Jalandhar Veg Market',  lat: lat + 0.07, lng: lng - 0.18, open: false, wheat: 2090, rice: 3150, cotton: 6400, maize: 1810, mustard: 5410, profit: 'Medium' },
-  { id: 4, name: 'Patiala Wholesale Hub', lat: lat - 0.22, lng: lng - 0.09, open: true,  wheat: 2150, rice: 3080, cotton: 6550, maize: 1870, mustard: 5280, profit: 'Medium' },
-  { id: 5, name: 'Ferozepur Mandi',       lat: lat + 0.19, lng: lng + 0.28, open: true,  wheat: 2125, rice: 3100, cotton: 6480, maize: 1850, mustard: 5220, profit: 'Low'    },
-  { id: 6, name: 'Bathinda Oil Mandi',    lat: lat - 0.09, lng: lng - 0.28, open: false, wheat: 2095, rice: 2980, cotton: 6720, maize: 1800, mustard: 5490, profit: 'Medium' },
+// Fallback high-fidelity regional Mandis (Punjab & surrounding) if Overpass yields nothing
+const PUNJAB_MANDIS = [
+  { name: 'Amritsar APMC Mandi', lat: 31.6340, lng: 74.8720, address: 'GT Road, Amritsar, Punjab', type: 'APMC Market' },
+  { name: 'Ludhiana Grain Market', lat: 30.9010, lng: 75.8570, address: 'Gill Road, Ludhiana, Punjab', type: 'Grain Market' },
+  { name: 'Jalandhar Veg Mandi', lat: 31.3260, lng: 75.5760, address: 'Maqsudan, Jalandhar, Punjab', type: 'Vegetable Market' },
+  { name: 'Patiala Wholesale Hub', lat: 30.3400, lng: 76.3800, address: 'Sanaur Road, Patiala, Punjab', type: 'Wholesale Mandi' },
+  { name: 'Ferozepur Mandi', lat: 30.9240, lng: 74.6220, address: 'Cantt Area, Ferozepur, Punjab', type: 'APMC Market' },
+  { name: 'Bathinda Oil & Grain Mandi', lat: 30.2110, lng: 74.9450, address: 'Mandi Road, Bathinda, Punjab', type: 'Oilseed Market' },
 ]
 
-// Haversine approx distance in km
-const kmDist = (lat1, lng1, lat2, lng2) => {
-  const R = 6371
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-    Math.cos((lat2 * Math.PI) / 180) *
-    Math.sin(dLng / 2) ** 2
-  return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1)
+// Haversine distance helper
+const haversine = (lat1, lng1, lat2, lng2) => {
+  const R = 6371, p = Math.PI / 180
+  const dLat = (lat2 - lat1) * p, dLng = (lng2 - lng1) * p
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * p) * Math.cos(lat2 * p) * Math.sin(dLng / 2) ** 2
+  return +(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))).toFixed(1)
 }
 
-// Recenter map component
-function Recenter({ center }) {
+// Map center controller
+function MapController({ center, zoom }) {
   const map = useMap()
-  useEffect(() => { map.setView(center, 12) }, [center, map])
+  useEffect(() => {
+    if (center) map.setView(center, zoom || 11, { animate: true })
+  }, [center, zoom, map])
   return null
 }
 
-const profitColors = {
-  Highest: '#22c55e',
-  High:    '#84cc16',
-  Medium:  '#f59e0b',
-  Low:     '#94a3b8',
-}
-
 export default function NearbyMarkets() {
+  const [phase, setPhase] = useState('idle') // idle | locating | loading | ready | error
+  const [error, setError] = useState('')
   const [userPos, setUserPos] = useState(null)
-  const [locationError, setLocationError] = useState('')
-  const [locating, setLocating] = useState(false)
   const [markets, setMarkets] = useState([])
-  const [selectedCrop, setSelectedCrop] = useState('wheat')
-  const [nearbyOnly, setNearbyOnly] = useState(true)
+  const [selectedIdx, setSelectedIdx] = useState(null)
+  const [routeCoordinates, setRouteCoordinates] = useState([])
+  const [routeInfo, setRouteInfo] = useState(null)
 
-  const CROPS = ['wheat', 'rice', 'cotton', 'maize', 'mustard']
+  const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
 
-  const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar fallback
-  const MAX_NEARBY_KM = 60 // Only show markets within this radius
+  // Fetch real markets using Overpass API
+  const fetchOverpassMarkets = async (lat, lng) => {
+    // Search for marketplaces, agricultural shops, farm shops, and food courts within 50km
+    const query = `[out:json][timeout:20];
+      (
+        node["amenity"="marketplace"](around:50000, ${lat}, ${lng});
+        way["amenity"="marketplace"](around:50000, ${lat}, ${lng});
+        node["shop"="agricultural"](around:50000, ${lat}, ${lng});
+        node["shop"="farm"](around:50000, ${lat}, ${lng});
+      );
+      out body 25;`;
 
-  const loadMarkets = (pos) => {
-    const all = generateMarkets(pos.lat, pos.lng).map(m => ({
-      ...m,
-      dist: kmDist(pos.lat, pos.lng, m.lat, m.lng),
-    }))
-    // Filter to nearby markets only; fall back to all if none qualify
-    const nearby = all.filter(m => parseFloat(m.dist) <= MAX_NEARBY_KM)
-    const mkts = nearby.length >= 2 ? nearby : all
-    setMarkets(mkts)
-    setNearbyOnly(nearby.length >= 2)
+    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Overpass API error')
+    const data = await res.json()
+
+    const results = (data.elements || []).map(element => {
+      const name = element.tags?.name || element.tags?.operator || 'Local Mandi / Market'
+      const address = element.tags?.['addr:street'] 
+        ? `${element.tags?.['addr:street']}, ${element.tags?.['addr:city'] || ''}`
+        : element.tags?.['addr:city'] || 'Nearby Agricultural Market'
+      
+      return {
+        id: element.id,
+        name,
+        address,
+        lat: element.lat || element.center?.lat || lat,
+        lng: element.lon || element.center?.lng || lng,
+        type: element.tags?.amenity || element.tags?.shop || 'Marketplace',
+      }
+    })
+
+    return results.filter(r => r.lat !== lat && r.lng !== lng)
   }
 
-  const getLocation = () => {
-    setLocating(true)
-    setLocationError('')
+  // Load routing from OSRM
+  const getOSRMRoute = async (start, end) => {
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+      const res = await fetch(url)
+      if (!res.ok) return null
+      const data = await res.json()
+      if (data.routes && data.routes.length > 0) {
+        const route = data.routes[0]
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]])
+        const distanceKm = (route.distance / 1000).toFixed(1)
+        const durationMin = Math.round(route.duration / 60)
+        return { coords, distance: `${distanceKm} km`, duration: `${durationMin} mins` }
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+
+  const loadData = useCallback(async (pos) => {
+    setPhase('loading')
+    setError('')
+    setSelectedIdx(null)
+    setRouteCoordinates([])
+    setRouteInfo(null)
+
+    try {
+      let list = []
+      try {
+        list = await fetchOverpassMarkets(pos.lat, pos.lng)
+      } catch (e) {
+        console.warn('Overpass API failed, falling back to static regional mandis.', e)
+      }
+
+      // If no open-source markets returned, populate with high-fidelity fallback mandis relative to position
+      if (list.length === 0) {
+        list = PUNJAB_MANDIS.map((m, index) => ({
+          id: `fallback-${index}`,
+          ...m,
+        }))
+      }
+
+      // Calculate distances
+      const sorted = list.map(m => ({
+        ...m,
+        dist: haversine(pos.lat, pos.lng, m.lat, m.lng),
+      })).sort((a, b) => a.dist - b.dist)
+
+      setMarkets(sorted)
+      setPhase('ready')
+    } catch (err) {
+      setError('Could not retrieve real market coordinates. Using local region fallback.')
+      const fallbackList = PUNJAB_MANDIS.map((m, index) => ({
+        id: `fallback-${index}`,
+        ...m,
+        dist: haversine(pos.lat, pos.lng, m.lat, m.lng),
+      })).sort((a, b) => a.dist - b.dist)
+      setMarkets(fallbackList)
+      setPhase('ready')
+    }
+  }, [])
+
+  const getLocation = useCallback(() => {
+    setPhase('locating')
+    setError('')
     if (!navigator.geolocation) {
-      setLocationError('Geolocation not supported by your browser.')
-      setLocating(false)
-      const pos = DEFAULT_POS
-      setUserPos(pos)
-      loadMarkets(pos)
+      setUserPos(DEFAULT_POS)
+      loadData(DEFAULT_POS)
       return
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      pos => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setUserPos(p)
-        loadMarkets(p)
-        setLocating(false)
+        loadData(p)
       },
       () => {
-        setLocationError('Location access denied — showing default region (Amritsar).')
-        const p = DEFAULT_POS
-        setUserPos(p)
-        loadMarkets(p)
-        setLocating(false)
+        setError('Location access denied — showing default Amritsar region.')
+        setUserPos(DEFAULT_POS)
+        loadData(DEFAULT_POS)
       },
       { timeout: 8000, enableHighAccuracy: true }
     )
+  }, [loadData])
+
+  useEffect(() => {
+    getLocation()
+  }, [getLocation])
+
+  // Get route coordinates when market selected
+  useEffect(() => {
+    if (selectedIdx === null || !userPos) {
+      setRouteCoordinates([])
+      setRouteInfo(null)
+      return
+    }
+    const target = markets[selectedIdx]
+    if (!target) return
+
+    getOSRMRoute(userPos, target).then(route => {
+      if (route) {
+        setRouteCoordinates(route.coords)
+        setRouteInfo({ distance: route.distance, duration: route.duration })
+      } else {
+        // Direct flight line fallback
+        setRouteCoordinates([[userPos.lat, userPos.lng], [target.lat, target.lng]])
+        setRouteInfo({ distance: `${target.dist} km`, duration: `${Math.round(target.dist * 1.5)} mins` })
+      }
+    })
+  }, [selectedIdx, userPos, markets])
+
+  const selectedMarket = selectedIdx !== null ? markets[selectedIdx] : null
+
+  // Direct redirection URL to Google Maps driving route (does not require API key)
+  const getGoogleMapsLink = (target) => {
+    if (!userPos || !target) return '#'
+    return `https://www.google.com/maps/dir/?api=1&origin=${userPos.lat},${userPos.lng}&destination=${target.lat},${target.lng}&travelmode=driving`
   }
 
-  // Load default on mount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    getLocation()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Derive best market from current crop selection (avoids setState-in-effect)
-  const bestMarket = useMemo(() => {
-    if (!markets.length) return null
-    return [...markets].sort((a, b) => b[selectedCrop] - a[selectedCrop])[0]
-  }, [selectedCrop, markets])
-
-  const center = userPos ? [userPos.lat, userPos.lng] : [DEFAULT_POS.lat, DEFAULT_POS.lng]
+  const mapCenter = userPos ? [userPos.lat, userPos.lng] : [DEFAULT_POS.lat, DEFAULT_POS.lng]
 
   return (
     <div className="db-section">
       <div className="nm-header-row">
         <div>
           <h1 className="db-page-title">🛒 Nearby Markets</h1>
-          <p className="db-page-sub">Real-time location-aware market finder with profitable route mapping.</p>
+          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — 100% free cardless location search.</p>
         </div>
-        <button
-          className="nm-locate-btn"
-          onClick={getLocation}
-          disabled={locating}
+        <button 
+          className="nm-locate-btn" 
+          onClick={getLocation} 
+          disabled={phase === 'locating' || phase === 'loading'}
         >
-          {locating ? '📡 Locating…' : '📍 Refresh Location'}
+          {phase === 'locating' ? '📡 Locating…' : phase === 'loading' ? '🔍 Searching…' : '📍 Refresh Location'}
         </button>
       </div>
 
-      {locationError && (
-        <div className="db-alert yellow">{locationError}</div>
+      {error && (
+        <div className="db-alert yellow" style={{ marginBottom: '1rem' }}>⚠️ {error}</div>
       )}
 
-      {/* Proximity notice */}
-      <div className={`db-alert ${nearbyOnly ? 'green' : 'yellow'}`} style={{ marginBottom: '0.5rem' }}>
-        {nearbyOnly
-          ? `📍 Showing ${markets.length} markets within 60 km of your location — sorted nearest first.`
-          : `🌐 No markets found within 60 km. Showing all ${markets.length} available markets.`}
-      </div>
-
-      {/* Crop selector for route */}
-      <div className="nm-crop-row" style={{ marginBottom: '1.5rem' }}>
-        <span className="nm-crop-label">Show best market for:</span>
-        <div className="nm-crop-chips">
-          {CROPS.map(c => (
-            <button
-              key={c}
-              onClick={() => setSelectedCrop(c)}
-              className={`nm-crop-chip ${selectedCrop === c ? 'active' : ''}`}
-            >
-              {c.charAt(0).toUpperCase() + c.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Split side-by-side layout */}
       <div className="nm-side-by-side-container">
         
-        {/* Left column: Map wrapper */}
+        {/* Left Column: Interactive Map */}
         <div className="nm-map-side">
-          <div className="nm-map-wrap">
-            {userPos && (
-              <MapContainer
-                center={center}
-                zoom={11}
-                className="nm-map"
-                zoomControl={true}
-              >
-                <Recenter center={center} />
-                <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                />
+          <div className="nm-map-wrap" style={{ minHeight: '420px', position: 'relative' }}>
+            <MapContainer
+              center={mapCenter}
+              zoom={11}
+              style={{ width: '100%', height: '100%', borderRadius: '14px' }}
+              zoomControl={true}
+            >
+              <MapController center={selectedMarket ? [selectedMarket.lat, selectedMarket.lng] : mapCenter} />
+              
+              <TileLayer
+                attribution='&copy; OpenStreetMap contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
 
-                {/* User position */}
-                <Marker position={center} icon={userIcon}>
+              {/* User Position Marker */}
+              {userPos && (
+                <Marker position={[userPos.lat, userPos.lng]} icon={userIcon}>
                   <Popup>
-                    <div className="nm-popup">
-                      <strong>📍 Your Location</strong>
-                      <br />
-                      <small>{userPos.lat.toFixed(4)}, {userPos.lng.toFixed(4)}</small>
+                    <div style={{ textAlign: 'center', fontWeight: 'bold' }}>📍 Your Location</div>
+                  </Popup>
+                </Marker>
+              )}
+
+              {/* Markets Markers */}
+              {markets.map((m, index) => (
+                <Marker
+                  key={m.id}
+                  position={[m.lat, m.lng]}
+                  icon={marketIcon(index === 0 ? '#22c55e' : '#3b82f6', selectedIdx === index)}
+                  eventHandlers={{
+                    click: () => setSelectedIdx(index),
+                  }}
+                >
+                  <Popup>
+                    <div style={{ padding: '0.2rem' }}>
+                      <strong style={{ fontSize: '0.85rem' }}>{m.name}</strong>
+                      <p style={{ margin: '0.2rem 0', fontSize: '0.75rem', color: '#64748b' }}>{m.address}</p>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#16a34a' }}>📏 {m.dist} km away</span>
                     </div>
                   </Popup>
                 </Marker>
+              ))}
 
-                {/* Grey lines to all markets */}
-                {markets.map(m => (
-                  <Polyline
-                    key={`line-${m.id}`}
-                    positions={[[userPos.lat, userPos.lng], [m.lat, m.lng]]}
-                    pathOptions={{ color: '#94a3b8', weight: 1.5, dashArray: '5,5', opacity: 0.5 }}
-                  />
-                ))}
+              {/* Real-time route line */}
+              {routeCoordinates.length > 0 && (
+                <Polyline
+                  positions={routeCoordinates}
+                  pathOptions={{ color: '#22c55e', weight: 5, opacity: 0.85 }}
+                />
+              )}
+            </MapContainer>
 
-                {/* Green highlighted "most profitable" route */}
-                {bestMarket && (
-                  <Polyline
-                    positions={[
-                      [userPos.lat, userPos.lng],
-                      [(userPos.lat + bestMarket.lat) / 2 + 0.04, (userPos.lng + bestMarket.lng) / 2],
-                      [bestMarket.lat, bestMarket.lng]
-                    ]}
-                    pathOptions={{ color: '#22c55e', weight: 4, opacity: 0.9 }}
-                  />
-                )}
-
-                {/* Market markers */}
-                {markets.map(m => (
-                  <Marker
-                    key={m.id}
-                    position={[m.lat, m.lng]}
-                    icon={marketIcon(profitColors[m.profit] || '#94a3b8', bestMarket?.id === m.id)}
-                  >
-                    <Popup>
-                      <div className="nm-popup">
-                        <strong>{m.name}</strong>
-                        <br />
-                        <small>🌾 Wheat: ₹{m.wheat}/qtl</small>
-                        <br />
-                        <small>🌾 {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}: ₹{m[selectedCrop]}/qtl</small>
-                        <br />
-                        <small>📏 {m.dist} km away</small>
-                        <br />
-                        <small style={{ color: m.open ? '#15803d' : '#dc2626' }}>
-                          {m.open ? '🟢 Open Now' : '🔴 Closed'}
-                        </small>
-                        {bestMarket?.id === m.id && (
-                          <div style={{ marginTop: 4, fontWeight: 700, color: '#15803d', fontSize: '0.75rem' }}>
-                            ⭐ Best price for {selectedCrop}!
-                          </div>
-                        )}
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
-              </MapContainer>
+            {/* Route status banner */}
+            {selectedMarket && routeInfo && (
+              <div style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(15, 23, 42, 0.95)',
+                color: '#fff',
+                padding: '0.5rem 1rem',
+                borderRadius: '20px',
+                fontSize: '0.78rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                gap: '1rem',
+                zIndex: 1000,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}>
+                <span>🚛 {routeInfo.distance}</span>
+                <span style={{ color: '#22c55e' }}>⏱ {routeInfo.duration}</span>
+              </div>
             )}
+          </div>
 
-            {/* Legend */}
-            <div className="nm-legend">
-              <div className="nm-legend-item">
-                <span className="nm-legend-dot" style={{ background: '#22c55e' }} />
-                <span>Best Route ({selectedCrop})</span>
-              </div>
-              <div className="nm-legend-item">
-                <span className="nm-legend-dot" style={{ background: '#22c55e', width: 10, height: 10, border: '2px solid #0f172a' }} />
-                <span>Highest Profit Market</span>
-              </div>
-              <div className="nm-legend-item">
-                <span className="nm-legend-dot" style={{ background: '#3b82f6' }} />
-                <span>Your Location</span>
-              </div>
-            </div>
+          <div className="nm-legend" style={{ marginTop: '0.5rem' }}>
+            <div className="nm-legend-item"><span className="nm-legend-dot" style={{ background: '#ef4444' }}/><span>Your Location</span></div>
+            <div className="nm-legend-item"><span className="nm-legend-dot" style={{ background: '#22c55e' }}/><span>Nearest Market</span></div>
+            <div className="nm-legend-item"><span className="nm-legend-dot" style={{ background: '#3b82f6' }}/><span>Other Markets</span></div>
+            <div className="nm-legend-item"><span style={{ width: 18, height: 4, background: '#22c55e', display: 'inline-block', borderRadius: 2 }}/><span>Truck Route</span></div>
           </div>
         </div>
 
-        {/* Right column: Distances list */}
+        {/* Right Column: Markets List */}
         <div className="nm-list-side">
-          {/* Best market highlight inside column */}
-          {bestMarket && (
-            <div className="nm-best-card" style={{ marginBottom: '0.75rem', width: '100%', boxSizing: 'border-box' }}>
+          {selectedMarket && (
+            <div className="nm-best-card" style={{ marginBottom: '0.75rem', width: '100%', boxSizing: 'border-box', border: '2px solid #22c55e' }}>
               <div className="nm-best-left">
-                <span className="nm-best-tag">⭐ Most Profitable for {selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)}</span>
-                <h3 className="nm-best-name" style={{ fontSize: '1rem' }}>{bestMarket.name}</h3>
-                <p className="nm-best-meta">{bestMarket.dist} km away · {bestMarket.open ? '🟢 Open' : '🔴 Closed'}</p>
+                <span className="nm-best-tag" style={{ background: '#dcfce7', color: '#166534' }}>🚛 Active Route Selected</span>
+                <h3 className="nm-best-name" style={{ fontSize: '0.95rem', margin: '0.2rem 0' }}>{selectedMarket.name}</h3>
+                <p className="nm-best-meta">{selectedMarket.address}</p>
+                <p className="nm-best-meta" style={{ fontWeight: 800, color: '#16a34a', marginTop: '0.2rem' }}>
+                  📏 {selectedMarket.dist} km away
+                </p>
+                {routeInfo && (
+                  <p style={{ fontSize: '0.75rem', color: '#166534', fontWeight: 700, margin: '0.2rem 0 0' }}>
+                    Truck duration: approx {routeInfo.duration}
+                  </p>
+                )}
               </div>
-              <div className="nm-best-price">
-                <p className="nm-best-price-val" style={{ fontSize: '1.4rem' }}>₹{bestMarket[selectedCrop]}</p>
-                <p className="nm-best-price-label">per quintal</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
+                <a
+                  href={getGoogleMapsLink(selectedMarket)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="scanner-btn"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    background: '#22c55e',
+                    color: '#fff',
+                    fontWeight: 'bold',
+                    fontSize: '0.72rem',
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  🚛 Truck Route
+                </a>
+                <button
+                  onClick={() => setSelectedIdx(null)}
+                  style={{ background: 'none', border: '1.5px solid #e2e8f0', borderRadius: '6px', padding: '0.25rem 0.5rem', fontSize: '0.7rem', color: '#64748b', cursor: 'pointer' }}
+                >
+                  Clear Route
+                </button>
               </div>
             </div>
           )}
 
-          {/* Scrollable list of markets with distance and prices */}
-          <div className="nm-markets-scroll-list">
-            {[...markets]
-              .sort((a, b) => parseFloat(a.dist) - parseFloat(b.dist))
-              .map(m => (
-                <div key={m.id} className={`nm-market-list-item ${bestMarket?.id === m.id ? 'best' : ''}`}>
-                  <div className="nm-item-header">
-                    <div className="nm-item-title-section">
-                      <h4 className="nm-item-name">{m.name}</h4>
-                      <div className="nm-item-distance-row">
-                        <span className="nm-distance-badge">📏 {m.dist} km away</span>
-                        <span className={`nm-open-badge ${m.open ? 'open' : 'closed'}`} style={{
-                          color: m.open ? '#22c55e' : '#ef4444',
-                          fontWeight: '800',
-                          fontSize: '0.65rem'
+          {phase === 'ready' && markets.length > 0 ? (
+            <div className="nm-markets-scroll-list" style={{ maxHeight: '380px', overflowY: 'auto' }}>
+              {markets.map((m, index) => (
+                <div
+                  key={m.id}
+                  className={`nm-market-list-item ${selectedIdx === index ? 'best' : ''}`}
+                  onClick={() => setSelectedIdx(index)}
+                  style={{ cursor: 'pointer', padding: '0.75rem', borderBottom: '1px solid #f1f5f9' }}
+                >
+                  <div className="nm-item-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{
+                          width: 20, height: 20, borderRadius: '50%',
+                          background: index === 0 ? '#22c55e' : '#3b82f6',
+                          color: '#fff', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', fontWeight: 'bold', fontSize: '0.65rem'
                         }}>
-                          {m.open ? '🟢 Open' : '🔴 Closed'}
+                          {index + 1}
+                        </span>
+                        <h4 className="nm-item-name" style={{ fontSize: '0.85rem', margin: 0 }}>{m.name}</h4>
+                      </div>
+                      <p style={{ fontSize: '0.7rem', color: '#64748b', margin: '0.2rem 0 0 1.6rem' }}>{m.address}</p>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem', paddingLeft: '1.6rem' }}>
+                        <span style={{
+                          fontSize: '0.65rem', padding: '0.15rem 0.4rem',
+                          background: '#f1f5f9', color: '#475569', borderRadius: '4px', fontWeight: 'bold'
+                        }}>
+                          📏 {m.dist} km
+                        </span>
+                        <span style={{
+                          fontSize: '0.65rem', padding: '0.15rem 0.4rem',
+                          background: '#ecfdf5', color: '#15803d', borderRadius: '4px', fontWeight: 'bold'
+                        }}>
+                          {m.type}
                         </span>
                       </div>
                     </div>
-                    <span className="nm-item-profit-badge" style={{ 
-                      background: `${profitColors[m.profit]}18`, 
-                      color: profitColors[m.profit],
-                      border: `1.5px solid ${profitColors[m.profit]}`
-                    }}>
-                      {m.profit}
-                    </span>
-                  </div>
-
-                  <div className="nm-item-prices">
-                    {CROPS.map(c => (
-                      <div key={c} className={`nm-item-price-chip ${c === selectedCrop ? 'highlight' : ''}`}>
-                        <span className="nm-item-crop">{c}</span>
-                        <span className="nm-item-val">₹{m[c]}</span>
-                      </div>
-                    ))}
+                    <a
+                      href={getGoogleMapsLink(m)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.2rem',
+                        background: '#f8fafc',
+                        border: '1px solid #cbd5e1',
+                        color: '#334155',
+                        fontWeight: 'bold',
+                        fontSize: '0.65rem',
+                        padding: '0.3rem 0.5rem',
+                        borderRadius: '6px',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      🚛 Route
+                    </a>
                   </div>
                 </div>
               ))}
-          </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b' }}>
+              <div className="db-map-spinner" style={{ borderTopColor: '#22c55e', margin: '0 auto 1rem' }}/>
+              <p style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>Finding local agricultural markets…</p>
+            </div>
+          )}
         </div>
 
       </div>

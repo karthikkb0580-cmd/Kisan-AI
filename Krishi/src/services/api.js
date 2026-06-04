@@ -25,8 +25,10 @@ export const TokenStore = {
 
 async function apiFetch(path, options = {}, retry = true) {
   const token = TokenStore.getAccess()
+  // Do NOT set Content-Type for FormData — browser sets it with the correct multipart boundary
+  const isFormData = options.body instanceof FormData
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   }

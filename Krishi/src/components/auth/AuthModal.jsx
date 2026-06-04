@@ -15,11 +15,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const [loginLoading, setLoginLoading]   = useState(false)
   const [loginError, setLoginError]       = useState('')
 
-  // OTP-login sub-mode
-  const [loginMode, setLoginMode]         = useState('password') // 'password' | 'otp'
-  const [otpLoginPhone, setOtpLoginPhone] = useState('')
-  const [otpLoginCode, setOtpLoginCode]   = useState('')
-  const [otpLoginSent, setOtpLoginSent]   = useState(false)
+
 
   // ── Register state ───────────────────────────────────────────────────────
   const [regStep, setRegStep]         = useState(1) // 1: details  2: OTP verify
@@ -109,33 +105,16 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── OTP LOGIN: send ──────────────────────────────────────────────────────
-  const handleSendLoginOTP = async (e) => {
-    e.preventDefault()
+  // ── DEMO LOGIN ──────────────────────────────────────────────────────────
+  const handleDemoLogin = async (e) => {
+    if (e) e.preventDefault()
     setLoginError('')
-    if (!otpLoginPhone) { setLoginError('Please enter your phone number.'); return }
     setLoginLoading(true)
     try {
-      await AuthAPI.sendOTP('sms', otpLoginPhone, 'login')
-      setOtpLoginSent(true)
-    } catch (err) {
-      setLoginError(err.message)
-    } finally {
-      setLoginLoading(false)
-    }
-  }
-
-  // ── OTP LOGIN: verify ────────────────────────────────────────────────────
-  const handleLoginOTP = async (e) => {
-    e.preventDefault()
-    setLoginError('')
-    if (!otpLoginCode) { setLoginError('Enter the 6-digit code.'); return }
-    setLoginLoading(true)
-    try {
-      const tokens = await AuthAPI.loginOTP('sms', otpLoginPhone, otpLoginCode)
+      const tokens = await AuthAPI.loginPassword('demo@krishi.ai', 'password')
       await afterLogin(tokens)
     } catch (err) {
-      setLoginError(err.message)
+      setLoginError(err.message || 'Demo login failed. Please try again.')
     } finally {
       setLoginLoading(false)
     }
@@ -145,12 +124,15 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const handleRegDetails = async (e) => {
     e.preventDefault()
     setRegError('')
-    if (!regName || !regEmail || !regPhone) {
-      setRegError('Please fill in all fields.'); return
+    if (!regName || !regEmail || !regPhone || !regPassword) {
+      setRegError('Please fill in all fields (including password).'); return
+    }
+    if (regPassword.length < 8) {
+      setRegError('Password must be at least 8 characters long.'); return
     }
     setRegLoading(true)
     try {
-      await AuthAPI.register(regName, regEmail, regPhone)
+      await AuthAPI.register(regName, regEmail, regPhone, regPassword)
       setOtpTimer(60)
       setRegStep(2)
     } catch (err) {
@@ -305,85 +287,54 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
         {/* ══ LOGIN ══════════════════════════════════════════════════════════ */}
         {!showForgot && tab === 'login' && (
           <div className="auth-form-wrap">
-            {/* Mode toggle */}
-            <div className="auth-mode-toggle">
-              <button className={`auth-mode-btn ${loginMode === 'password' ? 'active' : ''}`}
-                onClick={() => setLoginMode('password')}>Password</button>
-              <button className={`auth-mode-btn ${loginMode === 'otp' ? 'active' : ''}`}
-                onClick={() => { setLoginMode('otp'); setLoginError('') }}>OTP Login</button>
-            </div>
-
             {loginError && <div className="auth-error">{loginError}</div>}
 
             {/* ── Password login ── */}
-            {loginMode === 'password' && (
-              <form onSubmit={handleLogin} className="auth-form">
-                <div className="auth-field">
-                  <label htmlFor="login-email" className="auth-label">Email Address</label>
-                  <div className="auth-input-wrap">
-                    <Mail size={16} className="auth-input-icon" />
-                    <input id="login-email" type="email" placeholder="you@example.com" required
-                      value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="auth-input" />
-                  </div>
+            <form onSubmit={handleLogin} className="auth-form">
+              <div className="auth-field">
+                <label htmlFor="login-email" className="auth-label">Email Address</label>
+                <div className="auth-input-wrap">
+                  <Mail size={16} className="auth-input-icon" />
+                  <input id="login-email" type="email" placeholder="you@example.com" required
+                    value={loginEmail} onChange={e => setLoginEmail(e.target.value)} className="auth-input" />
                 </div>
-                <div className="auth-field">
-                  <div className="auth-label-row">
-                    <label htmlFor="login-password" className="auth-label">Password</label>
-                    <button type="button" className="auth-link-btn"
-                      onClick={() => setShowForgot(true)}>Forgot password?</button>
-                  </div>
-                  <div className="auth-input-wrap">
-                    <Lock size={16} className="auth-input-icon" />
-                    <input id="login-password" type={showLoginPw ? 'text' : 'password'}
-                      placeholder="••••••••" required value={loginPassword}
-                      onChange={e => setLoginPassword(e.target.value)} className="auth-input" />
-                    <button type="button" className="auth-eye-btn" onClick={() => setShowLoginPw(p => !p)}>
-                      {showLoginPw ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
+              </div>
+              <div className="auth-field">
+                <div className="auth-label-row">
+                  <label htmlFor="login-password" className="auth-label">Password</label>
+                  <button type="button" className="auth-link-btn"
+                    onClick={() => setShowForgot(true)}>Forgot password?</button>
                 </div>
-                <button id="btn-login-submit" type="submit" className="auth-submit-btn" disabled={loginLoading}>
-                  {loginLoading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Authenticating…</span>
-                    : <span className="auth-loading-row">Sign In <ArrowRight size={15} /></span>}
-                </button>
-              </form>
-            )}
-
-            {/* ── OTP login ── */}
-            {loginMode === 'otp' && (
-              <form onSubmit={otpLoginSent ? handleLoginOTP : handleSendLoginOTP} className="auth-form">
-                <div className="auth-field">
-                  <label className="auth-label">Mobile Number</label>
-                  <div className="auth-input-wrap">
-                    <Phone size={16} className="auth-input-icon" />
-                    <input type="tel" placeholder="+919876543210" required value={otpLoginPhone}
-                      onChange={e => setOtpLoginPhone(e.target.value)} className="auth-input"
-                      disabled={otpLoginSent} />
-                  </div>
-                </div>
-                {otpLoginSent && (
-                  <div className="auth-field">
-                    <label className="auth-label">SMS OTP Code</label>
-                    <input type="text" placeholder="6-digit code" maxLength={6} required
-                      value={otpLoginCode} onChange={e => setOtpLoginCode(e.target.value)}
-                      className="auth-input auth-otp-input"
-                      style={{ textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }} />
-                  </div>
-                )}
-                <button type="submit" className="auth-submit-btn" disabled={loginLoading}>
-                  {loginLoading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> {otpLoginSent ? 'Verifying…' : 'Sending OTP…'}</span>
-                    : <span className="auth-loading-row">{otpLoginSent ? 'Verify & Sign In' : 'Send OTP'} <ArrowRight size={15} /></span>}
-                </button>
-                {otpLoginSent && (
-                  <button type="button" className="auth-back-btn"
-                    onClick={() => { setOtpLoginSent(false); setOtpLoginCode('') }}>
-                    ← Change Number
+                <div className="auth-input-wrap">
+                  <Lock size={16} className="auth-input-icon" />
+                  <input id="login-password" type={showLoginPw ? 'text' : 'password'}
+                    placeholder="••••••••" required value={loginPassword}
+                    onChange={e => setLoginPassword(e.target.value)} className="auth-input" />
+                  <button type="button" className="auth-eye-btn" onClick={() => setShowLoginPw(p => !p)}>
+                    {showLoginPw ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
-                )}
-              </form>
-            )}
+                </div>
+              </div>
+              <button id="btn-login-submit" type="submit" className="auth-submit-btn" disabled={loginLoading}>
+                {loginLoading
+                  ? <span className="auth-loading-row"><span className="auth-spinner" /> Authenticating…</span>
+                  : <span className="auth-loading-row">Sign In <ArrowRight size={15} /></span>}
+              </button>
+
+              <div className="auth-divider">
+                <span>or</span>
+              </div>
+
+              <button
+                id="btn-demo-login"
+                type="button"
+                className="auth-demo-btn"
+                onClick={handleDemoLogin}
+                disabled={loginLoading}
+              >
+                ⚡ Quick Demo Account
+              </button>
+            </form>
 
             <p className="auth-switch-text">
               No account?{' '}
@@ -435,6 +386,17 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                     <Phone size={16} className="auth-input-icon" />
                     <input id="reg-phone" type="tel" placeholder="+919876543210" required
                       value={regPhone} onChange={e => setRegPhone(e.target.value)} className="auth-input" />
+                  </div>
+                </div>
+                <div className="auth-field">
+                  <label htmlFor="reg-password" className="auth-label">Password</label>
+                  <div className="auth-input-wrap">
+                    <Lock size={16} className="auth-input-icon" />
+                    <input id="reg-password" type={showRegPw ? 'text' : 'password'} placeholder="Min 8 characters" required
+                      value={regPassword} onChange={e => setRegPassword(e.target.value)} className="auth-input" />
+                    <button type="button" className="auth-eye-btn" onClick={() => setShowRegPw(p => !p)}>
+                      {showRegPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
                 </div>
 
