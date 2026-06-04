@@ -4072,7 +4072,7 @@ html.dark-theme .text-slate-600,
   background: #f1f5f9;
   color: #0f172a;
   font-family: var(--font-sans);
-  padding-top: 68px; /* header height */
+  padding-top: 68px; /* landing page header height — desktop only */
 }
 
 .dark-theme.db-root,
@@ -4275,8 +4275,9 @@ html.dark-theme .text-slate-600,
 .db-section {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.25rem;
   max-width: 1100px;
+  padding-top: 0;
 }
 
 .db-page-title {
@@ -4286,6 +4287,7 @@ html.dark-theme .text-slate-600,
   color: #0f172a;
   margin: 0;
   letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .dark-theme .db-page-title {
@@ -4295,7 +4297,7 @@ html.dark-theme .text-slate-600,
 .db-page-sub {
   font-size: 0.875rem;
   color: #64748b;
-  margin: -0.75rem 0 0;
+  margin: 0.3rem 0 0;
 }
 
 /* ── STATS GRID ── */
@@ -6845,7 +6847,7 @@ html.dark-theme .text-slate-600,
 
 @media (max-width: 480px) {
   .topo-env-strip {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .dash-clock-time {
@@ -6863,9 +6865,14 @@ html.dark-theme .text-slate-600,
    !! Desktop viewports (1024px+) are 100% untouched and pristine !!
    ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-  /* 1. Prevent Double Headers in Dashboard View */
+  /* 1. Prevent Double Headers + top-spacing in Dashboard View */
   .app-dashboard-active .header-pro {
     display: none !important;
+  }
+
+  /* Remove the landing-page header offset — dashboard has its own topbar */
+  .db-root {
+    padding-top: 0 !important;
   }
 
   /* 2. Unified Dashboard Fixed Topbar */
@@ -6875,33 +6882,36 @@ html.dark-theme .text-slate-600,
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
-    height: 60px !important;
+    height: 56px !important;
     z-index: 100 !important;
     background: #ffffff !important;
-    border-bottom: 2px solid #e2e8f0 !important;
-    padding: 0 1.25rem !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+    padding: 0 1rem !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05) !important;
     align-items: center !important;
     justify-content: flex-start !important;
+    gap: 0.5rem !important;
   }
 
   .dark-theme .db-topbar {
     background: #0e1728 !important;
     border-bottom-color: #1e293b !important;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.3) !important;
   }
 
   .db-topbar-title {
-    font-size: 0.95rem !important;
+    font-size: 0.9rem !important;
     font-weight: 800 !important;
     display: inline-flex !important;
     align-items: center !important;
-    gap: 0.5rem !important;
+    gap: 0.4rem !important;
+    flex: 1 !important;
   }
 
   .db-hamburger {
-    margin-right: 0.5rem !important;
+    margin-right: 0.25rem !important;
     padding: 6px !important;
+    flex-shrink: 0 !important;
   }
 
   /* 3. Perfect Drawer-Style Dashboard Sidebar */
@@ -6952,24 +6962,30 @@ html.dark-theme .text-slate-600,
   /* 5. Main Dashboard Padding Adjustments */
   .db-main {
     margin-left: 0 !important;
-    padding: 1.25rem 1rem 3rem !important;
-    padding-top: 80px !important; /* Give space for fixed topbar */
+    padding: 0 1rem 3rem !important;
+    padding-top: 68px !important; /* topbar (56px) + 12px gap */
+  }
+
+  /* Section header squeeze on mobile */
+  .db-section {
+    gap: 1rem !important;
+    padding-top: 0 !important;
   }
 
   /* 6. Dashboard Widget Scaling */
   .db-stats-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.75rem !important;
+    gap: 0.65rem !important;
   }
 
   .db-stat-card {
-    padding: 1rem 0.85rem !important;
+    padding: 0.9rem 0.75rem !important;
     border-radius: 12px !important;
   }
 
   .db-grid-2 {
     grid-template-columns: 1fr !important;
-    gap: 1rem !important;
+    gap: 0.85rem !important;
   }
 
   .dash-treatments-panel {
@@ -7049,5 +7065,559 @@ html.dark-theme .text-slate-600,
 
   .db-page-sub {
     font-size: 0.8rem !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   📱 PROFESSIONAL MOBILE ANIMATION SYSTEM — v2
+   Smooth spring-eased micro-interactions, staggered entrances,
+   touch feedback, and polished transitions for every mobile element.
+   All rules scoped to ≤1023px. Desktop (1024px+) is untouched.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── SHARED MOBILE KEYFRAMES ────────────────────────────────────── */
+
+@keyframes mob-slide-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mob-slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mob-scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes mob-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes mob-drawer-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+@keyframes mob-tab-pop {
+  0%   { transform: translateY(0)   scale(1); }
+  40%  { transform: translateY(-5px) scale(1.12); }
+  70%  { transform: translateY(1px)  scale(0.97); }
+  100% { transform: translateY(0)   scale(1); }
+}
+
+@keyframes mob-ripple {
+  from { transform: scale(0); opacity: 0.35; }
+  to   { transform: scale(2.5); opacity: 0; }
+}
+
+@keyframes mob-card-enter {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+@keyframes mob-bar-rise {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes mob-spinner {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes mob-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+@keyframes mob-shimmer-slide {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ── MOBILE HEADER PANEL — enhanced slide + fade ────────────────── */
+@media (max-width: 768px) {
+  .header-mobile-panel {
+    animation: mob-drawer-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+    will-change: transform, opacity;
+  }
+
+  .header-mobile-overlay {
+    animation: mob-fade-in 0.25s ease both !important;
+    will-change: opacity;
+  }
+
+  /* Stagger nav rows inside the panel */
+  .header-mobile-row:nth-child(1) { animation: mob-slide-down 0.32s cubic-bezier(0.16,1,0.3,1) 0.08s both; }
+  .header-mobile-row:nth-child(2) { animation: mob-slide-down 0.32s cubic-bezier(0.16,1,0.3,1) 0.14s both; }
+  .header-mobile-row:nth-child(3) { animation: mob-slide-down 0.32s cubic-bezier(0.16,1,0.3,1) 0.20s both; }
+  .header-mobile-auth              { animation: mob-slide-down 0.32s cubic-bezier(0.16,1,0.3,1) 0.26s both; }
+
+  /* Smooth lang chip hover */
+  .header-mobile-lang {
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .header-mobile-lang:hover {
+    transform: translateY(-2px);
+    box-shadow: 3px 3px 0 0 #0f172a;
+  }
+  .header-mobile-lang:active {
+    transform: scale(0.95) translateY(0);
+  }
+
+  /* Full-width auth buttons spring on touch */
+  .header-mobile-auth .header-btn {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .header-mobile-auth .header-btn:active {
+    transform: scale(0.97) !important;
+  }
+
+  /* Hamburger icon smooth rotation */
+  .header-hamburger {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .header-hamburger:active {
+    transform: rotate(90deg) scale(0.9) !important;
+  }
+}
+
+/* ── HERO SECTION — mobile entrance animation ───────────────────── */
+@media (max-width: 768px) {
+  .hero-eyebrow {
+    animation: mob-slide-down 0.6s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+  }
+  .hero-title {
+    animation: mob-slide-up 0.7s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+  }
+  .hero-subtitle {
+    animation: mob-slide-up 0.6s cubic-bezier(0.16,1,0.3,1) 0.35s both;
+  }
+  .hero-cta-row {
+    animation: mob-slide-up 0.6s cubic-bezier(0.16,1,0.3,1) 0.48s both;
+  }
+  .hero-scroll-cue {
+    animation: cue-bounce 2.4s ease-in-out infinite, mob-fade-in 0.6s ease 0.9s both;
+  }
+
+  /* CTA button spring tap */
+  .hero-btn-primary,
+  .hero-btn-ghost {
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .hero-btn-primary:active,
+  .hero-btn-ghost:active {
+    transform: scale(0.95) !important;
+  }
+}
+
+/* ── FEATURE SECTIONS — staggered card entrance ─────────────────── */
+@media (max-width: 768px) {
+  .snap-section:not(.hero-section) {
+    /* Smooth scroll-snap feel */
+    scroll-snap-stop: always;
+  }
+
+  .feat-card-info {
+    animation: mob-card-enter 0.55s cubic-bezier(0.16,1,0.3,1) 0.05s both;
+  }
+  .feat-card-video {
+    animation: mob-card-enter 0.55s cubic-bezier(0.16,1,0.3,1) 0.15s both;
+  }
+
+  /* Feature tag micro-pop */
+  .feat-tag {
+    animation: mob-scale-in 0.4s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+  }
+
+  /* Smoother card hover on mobile (touch lift) */
+  .feat-card {
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s ease !important;
+  }
+  .feat-card:active {
+    transform: scale(0.98) !important;
+  }
+}
+
+/* ── DASHBOARD SIDEBAR DRAWER — spring polish ───────────────────── */
+@media (max-width: 1023px) {
+  .db-sidebar {
+    will-change: transform;
+    /* Already has translateX transition — enhance easing */
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.4s ease !important;
+  }
+
+  .db-sidebar-overlay {
+    animation: mob-fade-in 0.28s ease both !important;
+    will-change: opacity;
+  }
+
+  /* Topbar entrance */
+  .db-topbar {
+    animation: mob-slide-down 0.4s cubic-bezier(0.16,1,0.3,1) both !important;
+  }
+
+  /* Stagger sidebar nav items when drawer opens */
+  .db-sidebar.open .db-user-card   { animation: mob-slide-up 0.32s cubic-bezier(0.16,1,0.3,1) 0.05s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(1) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.08s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(2) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(3) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.16s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(4) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.20s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(5) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.24s both; }
+  .db-sidebar.open .db-nav-btn:nth-child(6) { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.28s both; }
+  .db-sidebar.open .db-logout-btn  { animation: mob-slide-up 0.28s cubic-bezier(0.16,1,0.3,1) 0.32s both; }
+
+  /* Nav button spring tap */
+  .db-nav-btn {
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative;
+    overflow: hidden;
+  }
+  .db-nav-btn:active {
+    transform: scale(0.96) !important;
+  }
+  .db-nav-btn.active {
+    animation: mob-scale-in 0.25s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  /* Logout button */
+  .db-logout-btn {
+    transition: all 0.2s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .db-logout-btn:active {
+    transform: scale(0.96) !important;
+  }
+}
+
+/* ── MOBILE BOTTOM TAB BARS — bounce + spring active ───────────── */
+@media (max-width: 1023px) {
+  /* Dashboard tab bar rise-in on load */
+  .db-mobile-bar,
+  .dashboard-mobile-tabs {
+    animation: mob-bar-rise 0.45s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+    will-change: transform;
+  }
+
+  /* Tab button transitions */
+  .db-mob-btn,
+  .mobile-tab-btn {
+    transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Active pop animation */
+  .db-mob-btn.active,
+  .mobile-tab-btn.active {
+    animation: mob-tab-pop 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Touch press scale */
+  .db-mob-btn:active,
+  .mobile-tab-btn:active {
+    transform: scale(0.88) !important;
+  }
+
+  /* Icon scale on active */
+  .db-mob-btn.active .db-mob-icon,
+  .mobile-tab-btn.active .mobile-tab-icon {
+    transform: scale(1.15);
+    transition: transform 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  .db-mob-icon,
+  .mobile-tab-icon {
+    transition: transform 0.2s cubic-bezier(0.16,1,0.3,1);
+    display: block;
+  }
+}
+
+/* ── DASHBOARD STAT CARDS — staggered entrance ──────────────────── */
+@media (max-width: 1023px) {
+  .db-stats-grid .db-stat-card:nth-child(1) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s both; }
+  .db-stats-grid .db-stat-card:nth-child(2) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
+  .db-stats-grid .db-stat-card:nth-child(3) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.19s both; }
+  .db-stats-grid .db-stat-card:nth-child(4) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.26s both; }
+
+  .db-stat-card {
+    transition: transform 0.22s cubic-bezier(0.16,1,0.3,1), box-shadow 0.22s ease !important;
+  }
+  .db-stat-card:active {
+    transform: scale(0.97) !important;
+  }
+
+  /* DB cards slide in */
+  .db-card {
+    animation: mob-card-enter 0.45s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+    transition: transform 0.22s cubic-bezier(0.16,1,0.3,1), box-shadow 0.22s ease !important;
+  }
+  .db-card:active {
+    transform: scale(0.99) !important;
+  }
+
+  /* Scheme cards stagger */
+  .db-schemes-grid .db-scheme-card:nth-child(1) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.08s both; }
+  .db-schemes-grid .db-scheme-card:nth-child(2) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s both; }
+  .db-schemes-grid .db-scheme-card:nth-child(3) { animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) 0.22s both; }
+
+  .db-scheme-card {
+    transition: transform 0.22s cubic-bezier(0.16,1,0.3,1), box-shadow 0.22s ease, border-color 0.22s ease !important;
+  }
+  .db-scheme-card:active {
+    transform: scale(0.97) !important;
+  }
+}
+
+/* ── AUTH MODAL — mobile polish ─────────────────────────────────── */
+@media (max-width: 480px) {
+  .auth-modal-box {
+    animation: mob-scale-in 0.38s cubic-bezier(0.16,1,0.3,1) both !important;
+  }
+  .auth-modal-backdrop {
+    animation: mob-fade-in 0.28s ease both !important;
+  }
+
+  /* Form fields spring focus */
+  .auth-input {
+    transition: border-color 0.2s cubic-bezier(0.16,1,0.3,1),
+                box-shadow 0.2s cubic-bezier(0.16,1,0.3,1),
+                transform 0.15s ease !important;
+  }
+  .auth-input:focus {
+    transform: scale(1.01) !important;
+  }
+
+  /* Submit button spring */
+  .auth-submit-btn {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .auth-submit-btn:active:not(:disabled) {
+    transform: scale(0.97) !important;
+  }
+
+  /* Tab buttons */
+  .auth-tab-btn {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .auth-tab-btn.active {
+    animation: mob-scale-in 0.25s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  /* Step dots animate in */
+  .auth-step-dot {
+    transition: all 0.3s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .auth-step-dot.done {
+    animation: mob-scale-in 0.3s cubic-bezier(0.16,1,0.3,1) both,
+               mob-pulse-ring 0.6s ease 0.3s 1;
+  }
+}
+
+/* ── MARKET PRICES — mobile card entrances ──────────────────────── */
+@media (max-width: 768px) {
+  .mp-timing-card {
+    animation: mob-card-enter 0.4s cubic-bezier(0.16,1,0.3,1) both;
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .mp-timing-card:nth-child(1) { animation-delay: 0.04s; }
+  .mp-timing-card:nth-child(2) { animation-delay: 0.10s; }
+  .mp-timing-card:nth-child(3) { animation-delay: 0.16s; }
+  .mp-timing-card:active {
+    transform: scale(0.97) !important;
+  }
+
+  .mp-detail-card {
+    animation: mob-slide-up 0.42s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  /* Nearest market items */
+  .nm-market-list-item {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .nm-market-list-item:active {
+    transform: scale(0.98) !important;
+  }
+}
+
+/* ── ENV STRIP CARDS — stagger ──────────────────────────────────── */
+@media (max-width: 768px) {
+  .topo-env-card {
+    animation: mob-scale-in 0.35s cubic-bezier(0.16,1,0.3,1) both;
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .topo-env-card:nth-child(1) { animation-delay: 0.02s; }
+  .topo-env-card:nth-child(2) { animation-delay: 0.07s; }
+  .topo-env-card:nth-child(3) { animation-delay: 0.12s; }
+  .topo-env-card:nth-child(4) { animation-delay: 0.17s; }
+  .topo-env-card:nth-child(5) { animation-delay: 0.22s; }
+  .topo-env-card:nth-child(6) { animation-delay: 0.27s; }
+  .topo-env-card:active {
+    transform: scale(0.94) !important;
+  }
+}
+
+/* ── FARM TRAINING — guide cards ────────────────────────────────── */
+@media (max-width: 768px) {
+  .ft-guide-card {
+    animation: mob-card-enter 0.42s cubic-bezier(0.16,1,0.3,1) both;
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .ft-guide-card:nth-child(1) { animation-delay: 0.04s; }
+  .ft-guide-card:nth-child(2) { animation-delay: 0.10s; }
+  .ft-guide-card:nth-child(3) { animation-delay: 0.16s; }
+  .ft-guide-card:nth-child(4) { animation-delay: 0.22s; }
+  .ft-guide-card:active {
+    transform: scale(0.98) !important;
+  }
+
+  /* Training tab buttons */
+  .ft-tab-btn {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .ft-tab-btn:active {
+    transform: scale(0.95) !important;
+  }
+  .ft-tab-btn.active-crop,
+  .ft-tab-btn.active-live {
+    animation: mob-scale-in 0.25s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  /* Step buttons */
+  .ft-step-btn {
+    transition: all 0.18s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .ft-step-btn:active {
+    transform: scale(0.97) !important;
+  }
+}
+
+/* ── GENERIC TOUCH FEEDBACK — all interactive mobile elements ───── */
+@media (max-width: 1023px) {
+  /* Scrollbar area smooth scroll */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  /* Page title entrance */
+  .db-page-title {
+    animation: mob-slide-down 0.4s cubic-bezier(0.16,1,0.3,1) both;
+  }
+  .db-page-sub {
+    animation: mob-fade-in 0.4s ease 0.1s both;
+  }
+
+  /* Progress bar fill animate on mobile */
+  .db-bar-fill {
+    transition: width 0.8s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+
+  /* Alert entries */
+  .db-alert {
+    animation: mob-slide-up 0.35s cubic-bezier(0.16,1,0.3,1) both;
+    transition: all 0.2s ease !important;
+  }
+
+  /* Reminder items */
+  .dash-reminder-item {
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .dash-reminder-item:active {
+    transform: scale(0.98) !important;
+  }
+
+  /* Dismiss button */
+  .dash-reminder-dismiss {
+    transition: color 0.18s ease, transform 0.18s ease !important;
+  }
+  .dash-reminder-dismiss:active {
+    transform: rotate(90deg) scale(0.85) !important;
+  }
+
+  /* Footer subscribe button */
+  .footer-subscribe-btn {
+    transition: background 0.22s ease, transform 0.18s ease !important;
+  }
+  .footer-subscribe-btn:active {
+    transform: scale(0.96) !important;
+  }
+
+  /* Feature stat cards */
+  .feature-stat-card {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .feature-stat-card:active {
+    transform: scale(0.97) !important;
+  }
+
+  /* Clock widget pulse on load */
+  .dash-clock-widget {
+    animation: mob-scale-in 0.4s cubic-bezier(0.16,1,0.3,1) both;
+  }
+
+  /* Mobile scrollable tables — smooth momentum */
+  .db-history-table-wrap,
+  .mp-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* ── FOOTER MOBILE — stagger cols ───────────────────────────────── */
+@media (max-width: 600px) {
+  .footer-col:nth-child(1) { animation: mob-slide-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s both; }
+  .footer-col:nth-child(2) { animation: mob-slide-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
+  .footer-col:nth-child(3) { animation: mob-slide-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.19s both; }
+  .footer-col:nth-child(4) { animation: mob-slide-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.26s both; }
+
+  .footer-social-link {
+    transition: all 0.22s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .footer-social-link:active {
+    transform: scale(0.9) !important;
+  }
+}
+
+/* ── SHIMMER LOADING SKELETONS (mobile) ─────────────────────────── */
+@media (max-width: 1023px) {
+  .mob-skeleton {
+    background: linear-gradient(90deg,
+      rgba(0,0,0,0.06) 0%,
+      rgba(0,0,0,0.12) 50%,
+      rgba(0,0,0,0.06) 100%);
+    background-size: 200% 100%;
+    animation: mob-shimmer-slide 1.4s ease-in-out infinite;
+    border-radius: 8px;
+  }
+  .dark-theme .mob-skeleton {
+    background: linear-gradient(90deg,
+      rgba(255,255,255,0.04) 0%,
+      rgba(255,255,255,0.10) 50%,
+      rgba(255,255,255,0.04) 100%);
+    background-size: 200% 100%;
+  }
+}
+
+/* ── SCROLL SNAP — smooth momentum on iOS ───────────────────────── */
+@media (max-width: 768px) {
+  .scroll3d-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* ── REDUCED MOTION — respect user preference ───────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

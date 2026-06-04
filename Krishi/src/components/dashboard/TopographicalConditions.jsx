@@ -90,12 +90,25 @@ const getEnvConditions = (pos) => {
   }
 }
 
+// Map soil region index → instant crop suggestions (no form needed)
+const LOCATION_CROP_MAP = [
+  ['Wheat', 'Paddy (Rice)', 'Sugarcane', 'Mustard', 'Maize'],   // Alluvial
+  ['Cotton', 'Soybean', 'Maize', 'Wheat', 'Groundnut'],         // Black Cotton
+  ['Groundnut', 'Millets', 'Maize', 'Pulses', 'Potato'],        // Red & Yellow
+]
+
 export default function TopographicalConditions({ onTreatmentSelected }) {
   const [userPos, setUserPos] = useState(DEFAULT_POS)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [closestSoil, setClosestSoil] = useState(SOIL_REGIONS[0])
+  const [soilIndex, setSoilIndex] = useState(0)
   const [envCond, setEnvCond] = useState(getEnvConditions(DEFAULT_POS))
+
+  // Location-based instant crop suggestions
+  const [locationCrops, setLocationCrops] = useState(LOCATION_CROP_MAP[0])
+  const [selectedLocCrop, setSelectedLocCrop] = useState(null)
+  const [locCropSent, setLocCropSent] = useState(false)
 
   // Form states for manual input
   const [inputType, setInputType] = useState('clayey')
@@ -106,7 +119,7 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState(null)
 
-  // Crop suggestion flow
+  // Crop suggestion flow (form-based)
   const [selectedCrop, setSelectedCrop] = useState(null)
   const [cropSentToDashboard, setCropSentToDashboard] = useState(false)
 
@@ -139,13 +152,17 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
   }
 
   const determineSoilByLocation = (pos) => {
+    let idx = 2
     if (pos.lat > 28) {
-      setClosestSoil(SOIL_REGIONS[0])
+      idx = 0
     } else if (pos.lat > 16 && pos.lat < 26 && pos.lng > 72 && pos.lng < 81) {
-      setClosestSoil(SOIL_REGIONS[1])
-    } else {
-      setClosestSoil(SOIL_REGIONS[2])
+      idx = 1
     }
+    setClosestSoil(SOIL_REGIONS[idx])
+    setSoilIndex(idx)
+    setLocationCrops(LOCATION_CROP_MAP[idx])
+    setSelectedLocCrop(null)
+    setLocCropSent(false)
   }
 
   useEffect(() => {
@@ -255,7 +272,7 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
       )}
 
       {/* ── ENVIRONMENTAL CONDITIONS STRIP ── */}
-      <div className="topo-env-strip">
+      <div className="topo-env-strip" style={{ marginBottom: '1rem' }}>
         <div className="topo-env-card">
           <span className="topo-env-icon">🌡️</span>
           <span className="topo-env-label">Temperature</span>
@@ -293,6 +310,96 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
           <span className="topo-env-note">Forecast</span>
         </div>
       </div>
+
+      {/* ── INSTANT LOCATION-BASED CROP SUGGESTIONS ── */}
+      <div style={{ background: 'linear-gradient(135deg, rgba(34,197,94,0.08), rgba(74,222,128,0.04))', border: '2px solid #22c55e', borderRadius: '16px', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <div>
+            <span style={{ fontSize: '0.6rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#15803d', display: 'block', marginBottom: '0.2rem' }}>
+              📍 Based on your location — {closestSoil.name.split('(')[0].trim()}
+            </span>
+            <strong style={{ fontSize: '0.92rem', color: 'var(--text, #0f172a)', fontFamily: 'var(--font-display)' }}>
+              🌱 Recommended Crops for Your Region
+            </strong>
+          </div>
+          {locating && <span style={{ fontSize: '0.72rem', color: '#22c55e', fontWeight: '700', animation: 'mob-fade-in 0.3s ease' }}>📡 Updating…</span>}
+        </div>
+
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: selectedLocCrop ? '0.85rem' : '0' }}>
+          {locationCrops.map(crop => (
+            <button
+              key={crop}
+              onClick={() => { setSelectedLocCrop(selectedLocCrop === crop ? null : crop); setLocCropSent(false) }}
+              style={{
+                background: selectedLocCrop === crop ? '#15803d' : 'rgba(34,197,94,0.1)',
+                color: selectedLocCrop === crop ? '#ffffff' : '#15803d',
+                border: `2px solid ${selectedLocCrop === crop ? '#15803d' : '#22c55e'}`,
+                borderRadius: '10px',
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.75rem',
+                fontWeight: '800',
+                cursor: 'pointer',
+                transition: 'all 0.18s cubic-bezier(0.16,1,0.3,1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+              }}
+            >
+              {CROP_TREATMENTS[crop]?.icon || '🌱'} {crop}
+            </button>
+          ))}
+        </div>
+
+        {selectedLocCrop && CROP_TREATMENTS[selectedLocCrop] && (
+          <div style={{ background: 'var(--bg2, #ffffff)', border: '1.5px solid #22c55e', borderRadius: '14px', padding: '1rem', animation: 'mob-card-enter 0.3s cubic-bezier(0.16,1,0.3,1) both' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <strong style={{ fontSize: '0.9rem', color: 'var(--text, #0f172a)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {CROP_TREATMENTS[selectedLocCrop].icon} {selectedLocCrop} — Cultivation Guide
+              </strong>
+              {!locCropSent ? (
+                <button
+                  onClick={() => {
+                    const reminder = {
+                      id: Date.now(),
+                      date: new Date().toISOString().replace('T','').substring(0,16),
+                      disease: `Crop Plan: ${selectedLocCrop}`,
+                      treatment: CROP_TREATMENTS[selectedLocCrop].fertilizer,
+                      severity: 'Plan 📋',
+                      severityLevel: 'info',
+                      confidence: '100%',
+                      dosage: `Season: ${CROP_TREATMENTS[selectedLocCrop].season}`,
+                      status: 'pending',
+                    }
+                    if (onTreatmentSelected) onTreatmentSelected(reminder)
+                    setLocCropSent(true)
+                  }}
+                  style={{ background: '#22c55e', color: '#0f172a', border: '2px solid #15803d', borderRadius: '8px', padding: '0.35rem 0.85rem', fontSize: '0.72rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.18s ease' }}
+                >
+                  ✅ Add to Dashboard
+                </button>
+              ) : (
+                <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#15803d', background: '#dcfce7', padding: '0.3rem 0.75rem', borderRadius: '8px' }}>✓ Added</span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.65rem' }}>
+              {[
+                { icon: '💧', label: 'Water Need', val: CROP_TREATMENTS[selectedLocCrop].water },
+                { icon: '🧪', label: 'Fertilizer', val: CROP_TREATMENTS[selectedLocCrop].fertilizer },
+                { icon: '📅', label: 'Season', val: CROP_TREATMENTS[selectedLocCrop].season },
+              ].map(item => (
+                <div key={item.label} style={{ background: 'rgba(34,197,94,0.06)', borderRadius: '10px', padding: '0.5rem 0.65rem', border: '1px solid rgba(34,197,94,0.2)' }}>
+                  <span style={{ fontSize: '0.58rem', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', display: 'block', marginBottom: '0.15rem' }}>{item.icon} {item.label}</span>
+                  <strong style={{ fontSize: '0.72rem', color: 'var(--text, #0f172a)', lineHeight: '1.3', display: 'block' }}>{item.val}</strong>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: 'rgba(34,197,94,0.06)', borderLeft: '3px solid #22c55e', borderRadius: '0 8px 8px 0', padding: '0.5rem 0.75rem', fontSize: '0.72rem', color: 'var(--text2, #475569)', lineHeight: '1.5' }}>
+              <strong style={{ color: '#15803d' }}>💡 Expert Tip: </strong>{CROP_TREATMENTS[selectedLocCrop].tip}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
         
         {/* Left: GIS Terrain Map */}

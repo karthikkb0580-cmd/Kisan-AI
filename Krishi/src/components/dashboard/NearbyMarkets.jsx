@@ -202,7 +202,6 @@ export default function NearbyMarkets() {
                 zoom={11}
                 className="nm-map"
                 zoomControl={true}
-                style={{ height: '480px' }}
               >
                 <Recenter center={center} />
                 <TileLayer

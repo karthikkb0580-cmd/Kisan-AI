@@ -158,7 +158,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="db-stats-grid" style={{ marginTop:'1rem' }}>
+            <div className="db-stats-grid">
               {[
                 { icon:'🌡️', label:'Soil Temperature', value:'24°C', color:'green' },
                 { icon:'💧', label:'Soil Moisture', value:'67%', color:'blue' },
@@ -308,7 +308,7 @@ export default function Dashboard() {
             <h1 className="db-page-title">⚙️ Settings</h1>
             <p className="db-page-sub">Manage your security profiles, data, and agricultural node controls.</p>
 
-            <div className="db-card" style={{ maxWidth: '600px', marginTop: '1.5rem' }}>
+            <div className="db-card" style={{ maxWidth: '600px' }}>
               <h2 className="db-card-title">👤 Operator Profile</h2>
               <div className="db-info-row"><span>Operator Name</span><strong>{user.name}</strong></div>
               <div className="db-info-row"><span>Operator Email</span><strong>{user.email}</strong></div>
@@ -316,7 +316,7 @@ export default function Dashboard() {
               <div className="db-info-row"><span>Registered Date</span><span>{user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN') : 'Active Session'}</span></div>
             </div>
 
-            <div className="db-card" style={{ maxWidth: '600px', marginTop: '1.5rem', border: '2px solid #ef4444', background: 'rgba(239, 68, 68, 0.02)' }}>
+            <div className="db-card" style={{ maxWidth: '600px', border: '2px solid #ef4444', background: 'rgba(239, 68, 68, 0.02)' }}>
               <h3 style={{ color: '#ef4444', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                 ⚠️ Danger Zone
               </h3>
