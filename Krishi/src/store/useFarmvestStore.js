@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { TokenStore } from '../services/api'
 
 export const useFarmvestStore = create((set) => ({
   // UI Theme & Routing
@@ -162,6 +163,7 @@ export const useFarmvestStore = create((set) => ({
   },
 
   logout: () => {
+    TokenStore.clear()
     localStorage.removeItem('krishi_user')
     set({ user: null, view: 'home' })
   },
