@@ -8,10 +8,13 @@ import time
 import base64
 import jwt
 import bcrypt
+import shutil
+import uuid
 from typing import Optional, List, Dict
 from datetime import datetime, timedelta
 from fastapi import FastAPI, Depends, HTTPException, status, Header, Request, Form, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 from dotenv import load_dotenv
 import httpx
@@ -27,16 +30,16 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 # ── Gemini Vision AI ──────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-_gemini_model  = None
+_gemini_client = None
+GEMINI_MODEL   = "gemini-2.0-flash"
 
 if GEMINI_API_KEY and not GEMINI_API_KEY.startswith("your_gemini"):
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-        print("[Gemini] Vision model loaded — real AI diagnosis enabled.")
+        from google import genai as _genai
+        _gemini_client = _genai.Client(api_key=GEMINI_API_KEY)
+        print(f"[Gemini] Client ready — using {GEMINI_MODEL}.")
     except Exception as _e:
-        print(f"[Gemini] Failed to load model: {_e}")
+        print(f"[Gemini] Failed to load client: {_e}")
 else:
     print("[Gemini] No API key found — using smart mock fallback. Set GEMINI_API_KEY in .env")
 
@@ -53,6 +56,10 @@ database.init_db()
 
 
 app = FastAPI(title="Krishi AI Backend", version="1.0.0")
+
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -443,12 +450,22 @@ def update_profile(req: UpdateProfileRequest,
 # ── Users: Upload photo ───────────────────────────────────────────────────────
 @app.post("/api/v1/users/me/photo")
 async def upload_photo(file: UploadFile = File(...),
-                       user_id: int = Depends(get_current_user_id)):
+                       user_id: int = Depends(get_current_user_id),
+                       request: Request = None):
     user = database.get_user_by_id(user_id)
     if not user:
         raise HTTPException(404, "User not found")
-    # Mock: use DiceBear avatars (replace with real storage in prod)
-    avatar_url = f"https://api.dicebear.com/7.x/adventurer/svg?seed={user['full_name']}"
+    
+    file_ext = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+    new_filename = f"{uuid.uuid4().hex}.{file_ext}"
+    file_path = os.path.join(UPLOAD_DIR, new_filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    base_url = str(request.base_url).rstrip('/') if request else "http://localhost:8000"
+    avatar_url = f"{base_url}/uploads/{new_filename}"
+    
     database.update_user_profile(user_id=user_id, profile_photo_url=avatar_url)
     return {"detail": "Profile photo updated", "profile_photo_url": avatar_url}
 
@@ -591,16 +608,21 @@ async def ai_diagnose(
     image_bytes = await image.read()
     content_type = image.content_type or "image/jpeg"
 
-    # ── REAL AI: Google Gemini 1.5 Flash Vision ───────────────────────────────
-    if _gemini_model is not None:
+    # ── REAL AI: Google Gemini Vision ─────────────────────────────────────────
+    if _gemini_client is not None:
         try:
-            from PIL import Image as PILImage
-            pil_img = PILImage.open(io.BytesIO(image_bytes))
+            from google.genai import types as _gtypes
 
-            hint = f" (Farmer reports the crop as: {crop_name}." if crop_name else ""
+            hint = f" Farmer reports the crop as: {crop_name}." if crop_name else ""
             prompt = _GEMINI_PROMPT + hint
 
-            response = _gemini_model.generate_content([prompt, pil_img])
+            response = _gemini_client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    _gtypes.Part.from_bytes(data=image_bytes, mime_type=content_type),
+                    prompt,
+                ],
+            )
             raw = response.text.strip()
 
             # Strip markdown fences if Gemini wraps output anyway

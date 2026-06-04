@@ -81,6 +81,9 @@ export default function NearbyMarkets() {
   const [selectedIdx, setSelectedIdx] = useState(null)
   const [routeCoordinates, setRouteCoordinates] = useState([])
   const [routeInfo, setRouteInfo] = useState(null)
+  const [routeInstructions, setRouteInstructions] = useState([])
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [currentStep, setCurrentStep] = useState(0)
 
   const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
 
@@ -123,7 +126,7 @@ export default function NearbyMarkets() {
   // Load routing from OSRM
   const getOSRMRoute = async (start, end) => {
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`
       const res = await fetch(url)
       if (!res.ok) return null
       const data = await res.json()
@@ -132,7 +135,27 @@ export default function NearbyMarkets() {
         const coords = route.geometry.coordinates.map(c => [c[1], c[0]])
         const distanceKm = (route.distance / 1000).toFixed(1)
         const durationMin = Math.round(route.duration / 60)
-        return { coords, distance: `${distanceKm} km`, duration: `${durationMin} mins` }
+        
+        let instructions = []
+        if (route.legs && route.legs[0] && route.legs[0].steps) {
+          instructions = route.legs[0].steps.map(step => {
+            const { maneuver, name, distance } = step
+            let text = ''
+            if (maneuver.type === 'depart') text = `Head ${maneuver.modifier || 'straight'}`
+            else if (maneuver.type === 'arrive') text = `You will arrive at your destination`
+            else if (maneuver.type === 'turn') text = `Turn ${maneuver.modifier || ''}`.trim()
+            else text = `Continue ${maneuver.modifier || 'straight'}`
+
+            if (name) text += ` onto ${name}`
+            if (distance > 0) {
+              if (distance > 1000) text += ` for ${(distance / 1000).toFixed(1)} kilometers`
+              else text += ` for ${Math.round(distance)} meters`
+            }
+            return text
+          })
+        }
+
+        return { coords, distance: `${distanceKm} km`, duration: `${durationMin} mins`, instructions }
       }
     } catch {
       return null
@@ -146,6 +169,8 @@ export default function NearbyMarkets() {
     setSelectedIdx(null)
     setRouteCoordinates([])
     setRouteInfo(null)
+    setRouteInstructions([])
+    setIsNavigating(false)
 
     try {
       let list = []
@@ -215,6 +240,8 @@ export default function NearbyMarkets() {
     if (selectedIdx === null || !userPos) {
       setRouteCoordinates([])
       setRouteInfo(null)
+      setRouteInstructions([])
+      setIsNavigating(false)
       return
     }
     const target = markets[selectedIdx]
@@ -224,13 +251,52 @@ export default function NearbyMarkets() {
       if (route) {
         setRouteCoordinates(route.coords)
         setRouteInfo({ distance: route.distance, duration: route.duration })
+        setRouteInstructions(route.instructions || [])
       } else {
         // Direct flight line fallback
         setRouteCoordinates([[userPos.lat, userPos.lng], [target.lat, target.lng]])
         setRouteInfo({ distance: `${target.dist} km`, duration: `${Math.round(target.dist * 1.5)} mins` })
+        setRouteInstructions([`Head directly towards ${target.name} for ${target.dist} km`])
       }
+      setIsNavigating(false)
+      setCurrentStep(0)
     })
   }, [selectedIdx, userPos, markets])
+
+  const speakInstruction = useCallback((text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel() // stop any current speech
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.rate = 0.9
+      utterance.pitch = 1
+      window.speechSynthesis.speak(utterance)
+    }
+  }, [])
+
+  const startVoiceNavigation = () => {
+    setIsNavigating(true)
+    setCurrentStep(0)
+    const target = markets[selectedIdx]
+    if (routeInstructions.length > 0 && target) {
+      speakInstruction(`Navigating to ${target.name}. ` + routeInstructions[0])
+    }
+  }
+
+  const nextStep = () => {
+    if (currentStep < routeInstructions.length - 1) {
+      const nextIdx = currentStep + 1
+      setCurrentStep(nextIdx)
+      speakInstruction(routeInstructions[nextIdx])
+    } else {
+      speakInstruction("You have arrived at your destination.")
+      setIsNavigating(false)
+    }
+  }
+
+  const stopNavigation = () => {
+    setIsNavigating(false)
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+  }
 
   const selectedMarket = selectedIdx !== null ? markets[selectedIdx] : null
 
@@ -266,7 +332,7 @@ export default function NearbyMarkets() {
         
         {/* Left Column: Interactive Map */}
         <div className="nm-map-side">
-          <div className="nm-map-wrap" style={{ minHeight: '420px', position: 'relative' }}>
+          <div className="nm-map-wrap" style={{ height: '420px', minHeight: '420px', position: 'relative' }}>
             <MapContainer
               center={mapCenter}
               zoom={11}
@@ -327,17 +393,48 @@ export default function NearbyMarkets() {
                 transform: 'translateX(-50%)',
                 background: 'rgba(15, 23, 42, 0.95)',
                 color: '#fff',
-                padding: '0.5rem 1rem',
-                borderRadius: '20px',
-                fontSize: '0.78rem',
-                fontWeight: 'bold',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '16px',
+                fontSize: '0.85rem',
                 display: 'flex',
-                gap: '1rem',
+                flexDirection: 'column',
+                gap: '0.5rem',
                 zIndex: 1000,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                width: '90%',
+                maxWidth: '400px',
+                textAlign: 'center'
               }}>
-                <span>🚛 {routeInfo.distance}</span>
-                <span style={{ color: '#22c55e' }}>⏱ {routeInfo.duration}</span>
+                {isNavigating ? (
+                  <>
+                    <div style={{ fontWeight: 'bold', color: '#22c55e', fontSize: '0.9rem', marginBottom: '0.2rem' }}>
+                      Step {currentStep + 1} of {routeInstructions.length}
+                    </div>
+                    <div style={{ fontSize: '1rem', lineHeight: '1.4' }}>
+                      {routeInstructions[currentStep]}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.5rem' }}>
+                      <button onClick={nextStep} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        {currentStep < routeInstructions.length - 1 ? 'Next Step 🔊' : 'Finish'}
+                      </button>
+                      <button onClick={stopNavigation} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '0.4rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Stop
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', fontWeight: 'bold' }}>
+                      <span>🚛 {routeInfo.distance}</span>
+                      <span style={{ color: '#22c55e' }}>⏱ {routeInfo.duration}</span>
+                    </div>
+                    {routeInstructions.length > 0 && (
+                      <button onClick={startVoiceNavigation} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        🔊 Start Voice Navigation
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>
