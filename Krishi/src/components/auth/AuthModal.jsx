@@ -105,20 +105,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── DEMO LOGIN ──────────────────────────────────────────────────────────
-  const handleDemoLogin = async (e) => {
-    if (e) e.preventDefault()
-    setLoginError('')
-    setLoginLoading(true)
-    try {
-      const tokens = await AuthAPI.loginPassword('demo@krishi.ai', 'password')
-      await afterLogin(tokens)
-    } catch (err) {
-      setLoginError(err.message || 'Demo login failed. Please try again.')
-    } finally {
-      setLoginLoading(false)
-    }
-  }
+
 
   // ── REGISTER step 1: submit details → backend sends OTPs ────────────────
   const handleRegDetails = async (e) => {
@@ -321,19 +308,6 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   : <span className="auth-loading-row">Sign In <ArrowRight size={15} /></span>}
               </button>
 
-              <div className="auth-divider">
-                <span>or</span>
-              </div>
-
-              <button
-                id="btn-demo-login"
-                type="button"
-                className="auth-demo-btn"
-                onClick={handleDemoLogin}
-                disabled={loginLoading}
-              >
-                ⚡ Quick Demo Account
-              </button>
             </form>
 
             <p className="auth-switch-text">
