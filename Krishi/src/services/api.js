@@ -240,5 +240,7 @@ export const AIAPI = {
 
 // ── Health check ──────────────────────────────────────────────────────────────
 
-export const healthCheck = () =>
-  fetch('http://localhost:8000/health').then((r) => r.json()).catch(() => null)
+export const healthCheck = () => {
+  const rootUrl = BASE_URL.replace(/\/api\/v\d+$/, '')
+  return fetch(`${rootUrl}/health`).then((r) => r.json()).catch(() => null)
+}

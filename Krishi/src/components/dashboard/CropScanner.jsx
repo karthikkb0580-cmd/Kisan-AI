@@ -151,7 +151,7 @@ export default function CropScanner({ onTreatmentSelected }) {
     } catch (err) {
       let msg = err.message || 'Unknown error'
       if (err.name === 'TypeError' || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('failed')) {
-        msg = 'Cannot reach Krishi AI server. Make sure the Python backend is running on port 8000 (run: uvicorn main:app --reload in server_python/).'
+        msg = 'Cannot reach Krishi AI server. If developing locally, make sure the Python backend is running on port 8000 (run: uvicorn main:app --reload in server_python/). If deployed, verify your server is online and VITE_API_URL is configured correctly in Vercel.'
       }
       setScanError(msg)
     } finally {
