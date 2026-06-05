@@ -258,6 +258,17 @@ class PasswordResetConfirm(BaseModel):
     code: str
     new_password: str
 
+# ── Root ──────────────────────────────────────────────────────────────────────
+@app.get("/")
+def root():
+    return {
+        "name": "Krishi AI Backend",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
 # ── Health ────────────────────────────────────────────────────────────────────
 @app.get("/health")
 @app.get("/api/v1/health")
