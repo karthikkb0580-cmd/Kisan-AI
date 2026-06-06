@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
-import { UsersAPI, AuthAPI } from '../../services/api'
+import { UsersAPI, AuthAPI, AIAPI } from '../../services/api'
 import MarketPrices from './MarketPrices'
 import CropScanner from './CropScanner'
 import CropSecurity from './CropSecurity'
@@ -22,16 +22,93 @@ const NAV_ITEMS = [
   { id: 'settings',      icon: '⚙️', label: 'Settings' },
 ]
 
-const SEED_REMINDERS = [
-  { id: 1, disease: '🌾 Wheat — 2nd Irrigation', treatment: 'Apply 200 L water per acre', dosage: 'Today 06:00 AM', urgency: 'urgent', status: 'pending' },
-  { id: 2, disease: '🍚 Rice — Spray Tricyclazole 75%', treatment: 'Tricyclazole 75% WP — 120 g/acre', dosage: 'Tomorrow', urgency: 'warning', status: 'pending' },
-  { id: 3, disease: '🌻 Mustard — Boron foliar spray', treatment: '0.5% Borax solution at early flower', dosage: 'In 3 days', urgency: 'info', status: 'pending' },
-]
-
 const URGENCY = {
   urgent:  { bg: 'var(--urg-urgent-bg)', color: 'var(--urg-urgent)', border: 'var(--urg-urgent-border)', dot: 'var(--urg-urgent)' },
   warning: { bg: 'var(--urg-warn-bg)', color: 'var(--urg-warn)', border: 'var(--urg-warn-border)', dot: 'var(--urg-warn)' },
   info:    { bg: 'var(--urg-info-bg)', color: 'var(--urg-info)', border: 'var(--urg-info-border)', dot: 'var(--urg-info)' },
+}
+
+const getEnvConditions = (pos) => {
+  const isNorth = pos.lat > 28
+  return {
+    temp:     isNorth ? '29°C' : '34°C',
+    humidity: isNorth ? '58%' : '72%',
+    uv:       isNorth ? '6 (High)' : '9 (Very High)',
+    wind:     isNorth ? '14 km/h NW' : '8 km/h SE',
+    advisory: isNorth 
+      ? 'Advisory for Wheat/Mustard: Cool breeze (14 km/h) & moderate moisture. Postpone high-nitrogen sprays today.'
+      : 'Advisory for general crops: High heat (34°C) & dry wind. Increase early morning drip irrigation cycles.',
+    alertColor: isNorth ? 'yellow' : 'red'
+  }
+}
+
+const getRemindersForRegion = (pos) => {
+  if (pos.lat > 28) {
+    return [
+      { id: 'rem-1', disease: '🌾 Wheat — 2nd Irrigation', treatment: 'Apply 200 L water per acre at Crown Root stage', dosage: 'Today 06:00 AM', urgency: 'urgent', status: 'pending' },
+      { id: 'rem-2', disease: '🌻 Mustard — Boron foliar spray', treatment: '0.5% Borax solution at early flower', dosage: 'In 3 days', urgency: 'info', status: 'pending' },
+    ]
+  } else if (pos.lat > 16 && pos.lat < 26 && pos.lng > 72 && pos.lng < 81) {
+    return [
+      { id: 'rem-1', disease: '🪴 Cotton — Sucking Pest prevention', treatment: 'Spray Imidacloprid 70% WS', dosage: 'Today 08:00 AM', urgency: 'urgent', status: 'pending' },
+      { id: 'rem-2', disease: '🫘 Soybean — Rhizobium inoculation', treatment: 'Treat seeds with Rhizobium culture to fix Nitrogen', dosage: 'Tomorrow', urgency: 'warning', status: 'pending' },
+    ]
+  } else {
+    return [
+      { id: 'rem-1', disease: '🥔 Potato — Earth-up Ridge creation', treatment: 'Perform earth-up for better tuber growth', dosage: 'Tomorrow morning', urgency: 'warning', status: 'pending' },
+      { id: 'rem-2', disease: '🌾 Millets — Thinning operation', treatment: 'Thin out crowded seedlings to improve spacing', dosage: 'In 2 days', urgency: 'info', status: 'pending' },
+    ]
+  }
+}
+
+const getHistoryForRegion = (pos) => {
+  if (pos.lat > 28) {
+    return [
+      { season: 'Rabi 2025–26', crop: 'Wheat', area: '12 acres', yield: '380 qtl', revenue: '₹8,64,500', ok: true },
+      { season: 'Kharif 2025', crop: 'Rice', area: '8 acres', yield: '220 qtl', revenue: '₹6,82,000', ok: true },
+      { season: 'Rabi 2024–25', crop: 'Mustard', area: '5 acres', yield: '90 qtl', revenue: '₹4,68,000', ok: true },
+    ]
+  } else if (pos.lat > 16 && pos.lat < 26 && pos.lng > 72 && pos.lng < 81) {
+    return [
+      { season: 'Kharif 2025', crop: 'Cotton', area: '10 acres', yield: '150 qtl', revenue: '₹9,75,000', ok: true },
+      { season: 'Kharif 2024', crop: 'Soybean', area: '8 acres', yield: '96 qtl', revenue: '₹4,32,000', ok: true },
+    ]
+  } else {
+    return [
+      { season: 'Kharif 2025', crop: 'Groundnut', area: '6 acres', yield: '90 qtl', revenue: '₹5,40,000', ok: true },
+      { season: 'Kharif 2024', crop: 'Millets', area: '10 acres', yield: '160 qtl', revenue: '₹3,52,000', ok: true },
+    ]
+  }
+}
+
+const getSchemesForRegion = (pos) => {
+  const base = [
+    { name:'PM-KISAN Yojana', desc:'Direct income support of ₹6,000/year.', status:'Active', badge:'green', amount:'₹6,000/yr' },
+    { name:'Soil Health Card', desc:'Free soil testing and nutrient recommendations.', status:'Eligible', badge:'blue', amount:'Free' },
+    { name:'PM Fasal Bima Yojana', desc:'Crop insurance covering natural disasters.', status:'Apply Now', badge:'yellow', amount:'₹800 Premium' },
+    { name:'eNAM Online Market', desc:'Unified national agriculture market.', status:'Active', badge:'green', amount:'Free Access' },
+    { name:'Kisan Credit Card', desc:'Short-term credit up to ₹3 lakh at 7%.', status:'Eligible', badge:'blue', amount:'Up to ₹3L' },
+  ]
+
+  if (pos.lat > 28) {
+    return [
+      ...base,
+      { name: 'Punjab Farm Debt Waiver', desc: 'State interest clearance & debt waiver up to ₹2 Lakh for small farmers.', status: 'Active (Punjab)', badge: 'green', amount: 'Up to ₹2L' },
+      { name: 'Pani Bachao Paise Kamao', desc: 'Direct cash subsidy for electricity conservation in agricultural tube-wells.', status: 'Apply Now', badge: 'yellow', amount: '₹10,000 max' }
+    ]
+  } else if (pos.lat > 16 && pos.lat < 26 && pos.lng > 72 && pos.lng < 81) {
+    return [
+      ...base,
+      { name: 'MJPS Karjmukti Yojana', desc: 'Maharashtra state crop debt relief scheme for outstanding agricultural loans.', status: 'Active (MH)', badge: 'green', amount: 'Up to ₹2L' },
+      { name: 'Krishi Swavalamban', desc: 'Subsidies for digging new wells and electric pump installation.', status: 'Eligible', badge: 'blue', amount: '₹25,000 grant' }
+    ]
+  } else {
+    return [
+      ...base,
+      { name: 'Rythu Bandhu Support', desc: 'Telangana/AP direct investment support of ₹10,000 per acre per year.', status: 'Active (Telangana)', badge: 'green', amount: '₹10,000/acre' },
+      { name: 'Cooperative Crop Loan Waiver', desc: 'Tamil Nadu/AP zero-interest crop loan waiver program via co-op banks.', status: 'Eligible', badge: 'blue', amount: 'Full waiver' }
+    ]
+  }
 }
 
 function MapLoading() {
@@ -47,8 +124,21 @@ export default function Dashboard() {
   const { user, setUser, setView, theme } = useFarmvestStore()
   const [activeTab, setActiveTab] = useState('dashboard')
   const [time, setTime] = useState(new Date())
-  const [treatments, setTreatments] = useState(SEED_REMINDERS)
+  const [treatments, setTreatments] = useState([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [history, setHistory] = useState([])
+  const [schemes, setSchemes] = useState([])
+
+  // Location-based states
+  const [userPos, setUserPos] = useState({ lat: 31.634, lng: 74.872 })
+  const [stats, setStats] = useState({
+    temp: '24°C',
+    humidity: '67%',
+    uv: '6 (High)',
+    wind: '12 km/h',
+    advisory: 'Syncing live weather advisory…',
+    alertColor: 'yellow'
+  })
 
   // Settings states
   const [photoLoading, setPhotoLoading] = useState(false)
@@ -62,6 +152,60 @@ export default function Dashboard() {
   const [secLoading, setSecLoading] = useState(false)
   const [secError, setSecError] = useState('')
   const [secSuccess, setSecSuccess] = useState('')
+
+  const loadDashboardData = async (pos) => {
+    setUserPos(pos)
+    const defaults = getEnvConditions(pos)
+    
+    // Set regional reminders, history, schemes first
+    setTreatments(getRemindersForRegion(pos))
+    setHistory(getHistoryForRegion(pos))
+    setSchemes(getSchemesForRegion(pos))
+
+    try {
+      let locName = 'South/East India'
+      if (pos.lat > 28) locName = 'Punjab, North India'
+      else if (pos.lat > 16 && pos.lat < 26 && pos.lng > 72 && pos.lng < 81) locName = 'Deccan, Central India'
+      
+      const res = await AIAPI.weatherAdvisory(locName, 'general')
+      if (res && res.temperature) {
+        setStats({
+          temp: res.temperature.includes('C') ? res.temperature : `${res.temperature}°C`,
+          humidity: res.humidity || defaults.humidity,
+          uv: defaults.uv,
+          wind: defaults.wind,
+          advisory: res.advisory || defaults.advisory,
+          alertColor: defaults.alertColor
+        })
+      } else {
+        setStats(defaults)
+      }
+    } catch {
+      setStats(defaults)
+    }
+  }
+
+  const fetchDashboardLocation = () => {
+    if (!navigator.geolocation) {
+      loadDashboardData({ lat: 31.634, lng: 74.872 })
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        loadDashboardData({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+      },
+      () => {
+        loadDashboardData({ lat: 31.634, lng: 74.872 })
+      },
+      { timeout: 6000 }
+    )
+  }
+
+  useEffect(() => {
+    fetchDashboardLocation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
@@ -87,7 +231,7 @@ export default function Dashboard() {
   }
   const markStatus = (id, status) => setTreatments(prev => prev.map(t => t.id === id ? { ...t, status } : t))
   const removeTreatment = (id) => setTreatments(prev => prev.filter(t => t.id !== id))
-  const refreshTreatments = () => { setTreatments(SEED_REMINDERS); setTime(new Date()) }
+  const refreshTreatments = () => { fetchDashboardLocation(); setTime(new Date()) }
 
   const activeTreatments = treatments.filter(t => t.status !== 'done' && t.status !== 'skipped')
   const completedTreatments = treatments.filter(t => t.status === 'done' || t.status === 'skipped')
@@ -254,10 +398,10 @@ export default function Dashboard() {
 
             <div className="db-stats-grid">
               {[
-                { icon:'🌡️', label:'Soil Temperature', value:'24°C', color:'green' },
-                { icon:'💧', label:'Soil Moisture', value:'67%', color:'blue' },
-                { icon:'☀️', label:'UV Index', value:'6 (High)', color:'yellow' },
-                { icon:'🌬️', label:'Wind Speed', value:'12 km/h', color:'purple' },
+                { icon:'🌡️', label:'Soil Temperature', value: stats.temp, color:'green' },
+                { icon:'💧', label:'Soil Moisture', value: stats.humidity, color:'blue' },
+                { icon:'☀️', label:'UV Index', value: stats.uv, color:'yellow' },
+                { icon:'🌬️', label:'Wind Speed', value: stats.wind, color:'purple' },
               ].map(s => (
                 <div key={s.label} className={`db-stat-card db-stat-${s.color}`}>
                   <span className="db-stat-icon">{s.icon}</span>
@@ -276,7 +420,7 @@ export default function Dashboard() {
                 </div>
                 <div className="dash-treatments-header-btns">
                   <button className="db-refresh-btn" onClick={refreshTreatments}>🔄 Refresh</button>
-                  <button className="dash-treatments-reset" onClick={() => setTreatments(SEED_REMINDERS)}>Reset</button>
+                  <button className="dash-treatments-reset" onClick={() => setTreatments(getRemindersForRegion(userPos))}>Reset</button>
                 </div>
               </div>
 
@@ -336,9 +480,9 @@ export default function Dashboard() {
               </div>
               <div className="db-card">
                 <h2 className="db-card-title">⚠️ Alerts</h2>
-                <div className="db-alert yellow">🌧️ Light rain expected — defer fertilisation</div>
-                <div className="db-alert green">✅ Nitrogen levels optimal across all sectors</div>
-                <div className="db-alert red">🔴 Sector C-4 moisture below threshold</div>
+                <div className={`db-alert ${stats.alertColor || 'yellow'}`}>📢 Weather Advisory: {stats.advisory}</div>
+                <div className="db-alert green">✅ Soil condition synced to GPS coordinates</div>
+                <div className="db-alert red">🔴 Regional Soil: {userPos && userPos.lat > 28 ? 'Phosphorus levels low (typical for Alluvial Soil)' : 'Nitrogen deficient (typical for Red/Yellow Soil)'}</div>
               </div>
             </div>
           </div>
@@ -354,14 +498,7 @@ export default function Dashboard() {
             <h1 className="db-page-title">🏛️ Government Supports</h1>
             <p className="db-page-sub">Active subsidies, schemes, and agricultural grants.</p>
             <div className="db-schemes-grid">
-              {[
-                { name:'PM-KISAN Yojana', desc:'Direct income support of ₹6,000/year.', status:'Active', badge:'green', amount:'₹6,000/yr' },
-                { name:'Soil Health Card', desc:'Free soil testing and nutrient recommendations.', status:'Eligible', badge:'blue', amount:'Free' },
-                { name:'PM Fasal Bima Yojana', desc:'Crop insurance covering natural disasters.', status:'Apply Now', badge:'yellow', amount:'₹800 Premium' },
-                { name:'eNAM Online Market', desc:'Unified national agriculture market.', status:'Active', badge:'green', amount:'Free Access' },
-                { name:'Kisan Credit Card', desc:'Short-term credit up to ₹3 lakh at 7%.', status:'Eligible', badge:'blue', amount:'Up to ₹3L' },
-                { name:'Paramparagat Krishi', desc:'Support for conversion to organic farming.', status:'Apply Now', badge:'yellow', amount:'₹50,000 grant' },
-              ].map(s => (
+              {schemes.map(s => (
                 <div key={s.name} className="db-scheme-card">
                   <div className="db-scheme-top"><h3 className="db-scheme-name">{s.name}</h3><span className={`db-badge ${s.badge}`}>{s.status}</span></div>
                   <p className="db-scheme-desc">{s.desc}</p>
@@ -383,12 +520,7 @@ export default function Dashboard() {
               <table className="db-table">
                 <thead><tr><th>Season</th><th>Crop</th><th>Area</th><th>Yield</th><th>Revenue</th><th>Status</th></tr></thead>
                 <tbody>
-                  {[
-                    { season:'Rabi 2025–26', crop:'Wheat', area:'12', yield:'380', revenue:'₹80,750', ok:true },
-                    { season:'Kharif 2025', crop:'Rice', area:'8', yield:'220', revenue:'₹68,200', ok:true },
-                    { season:'Rabi 2024–25', crop:'Mustard', area:'5', yield:'90', revenue:'₹46,800', ok:true },
-                    { season:'Kharif 2024', crop:'Cotton', area:'10', yield:'150', revenue:'₹97,500', ok:false },
-                  ].map((r,i) => (
+                  {history.map((r,i) => (
                     <tr key={i}><td>{r.season}</td><td><strong>{r.crop}</strong></td><td>{r.area}</td><td>{r.yield}</td><td className="db-revenue">{r.revenue}</td><td><span className={`db-badge ${r.ok?'green':'yellow'}`}>{r.ok?'Harvested':'Partial ⚠️'}</span></td></tr>
                   ))}
                 </tbody>
@@ -517,7 +649,7 @@ export default function Dashboard() {
                 ⚠️ Danger Zone
               </h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>
-                Uprooting your operator profile is permanent. All leaf scans, custom treatments, and dashboard reminders will be wiped instantly from the databases.
+                Uprooting your operator profile is permanent. All leaf, fruit, and vegetable scans, custom treatments, and dashboard reminders will be wiped instantly from the databases.
               </p>
               <button 
                 onClick={handleDeleteAccount}

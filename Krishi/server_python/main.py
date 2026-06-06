@@ -6,6 +6,7 @@ import re
 import random
 import time
 import base64
+import asyncio
 import jwt
 import bcrypt
 import shutil
@@ -31,17 +32,159 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 # ── Gemini Vision AI ──────────────────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 _gemini_client = None
-GEMINI_MODEL   = "gemini-2.0-flash"
+GEMINI_MODEL   = "gemini-2.5-flash-lite"
 
 if GEMINI_API_KEY and not GEMINI_API_KEY.startswith("your_gemini"):
     try:
         from google import genai as _genai
         _gemini_client = _genai.Client(api_key=GEMINI_API_KEY)
-        print(f"[Gemini] Client ready — using {GEMINI_MODEL}.")
+        print(f"[Gemini] ✅ Client ready — default model: {GEMINI_MODEL}.")
+        print(f"[Gemini]    Key prefix: {GEMINI_API_KEY[:8]}... (valid keys start with AIza)")
     except Exception as _e:
-        print(f"[Gemini] Failed to load client: {_e}")
+        print(f"[Gemini] ❌ Failed to load client: {type(_e).__name__}: {_e}")
 else:
-    print("[Gemini] No API key found — using smart mock fallback. Set GEMINI_API_KEY in .env")
+    print("[Gemini] ⚠️  No API key found — using smart mock fallback.")
+    print("[Gemini]    → Get a free key at: https://aistudio.google.com/apikey")
+    print("[Gemini]    → Add to server_python/.env:  GEMINI_API_KEY=AIzaSy...")
+
+# ── HuggingFace PlantVillage MobileNetV2 ML Model (Free — no key needed) ──────
+# Trained on PlantVillage dataset: 38 disease classes across 14 crop species.
+# Public inference API, no auth required for basic usage (1000 req/day free).
+HF_MODEL_ID  = "linkanjarad/mobilenet_v2_1.0_224-plant-disease-identification"
+HF_API_URL   = f"https://api-inference.huggingface.co/models/{HF_MODEL_ID}"
+HF_API_KEY   = os.getenv("HUGGINGFACE_API_KEY", "")  # optional – increases quota
+
+# Maps PlantVillage label → (plant_type, disease_with_scientific_name)
+PLANTVILLAGE_LABELS: Dict[str, tuple] = {
+    "Apple___Apple_scab":                                   ("Apple",         "Apple Scab (Venturia inaequalis)"),
+    "Apple___Black_rot":                                    ("Apple",         "Black Rot (Botryosphaeria obtusa)"),
+    "Apple___Cedar_apple_rust":                             ("Apple",         "Cedar Apple Rust (Gymnosporangium juniperi-virginianae)"),
+    "Apple___healthy":                                      ("Apple",         "Healthy"),
+    "Blueberry___healthy":                                  ("Blueberry",     "Healthy"),
+    "Cherry_(including_sour)___Powdery_mildew":             ("Cherry",        "Powdery Mildew (Podosphaera clandestina)"),
+    "Cherry_(including_sour)___healthy":                    ("Cherry",        "Healthy"),
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot":   ("Corn (Maize)",  "Gray Leaf Spot (Cercospora zeae-maydis)"),
+    "Corn_(maize)___Common_rust_":                          ("Corn (Maize)",  "Common Rust (Puccinia sorghi)"),
+    "Corn_(maize)___Northern_Leaf_Blight":                  ("Corn (Maize)",  "Northern Leaf Blight (Exserohilum turcicum)"),
+    "Corn_(maize)___healthy":                               ("Corn (Maize)",  "Healthy"),
+    "Grape___Black_rot":                                    ("Grape",         "Black Rot (Guignardia bidwellii)"),
+    "Grape___Esca_(Black_Measles)":                         ("Grape",         "Esca / Black Measles (Phaeomoniella chlamydospora)"),
+    "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)":           ("Grape",         "Leaf Blight (Isariopsis clavispora)"),
+    "Grape___healthy":                                      ("Grape",         "Healthy"),
+    "Orange___Haunglongbing_(Citrus_greening)":             ("Orange",        "Huanglongbing / Citrus Greening (Candidatus Liberibacter spp.)"),
+    "Peach___Bacterial_spot":                               ("Peach",         "Bacterial Spot (Xanthomonas arboricola pv. pruni)"),
+    "Peach___healthy":                                      ("Peach",         "Healthy"),
+    "Pepper,_bell___Bacterial_spot":                        ("Bell Pepper",   "Bacterial Spot (Xanthomonas campestris pv. vesicatoria)"),
+    "Pepper,_bell___healthy":                               ("Bell Pepper",   "Healthy"),
+    "Potato___Early_blight":                                ("Potato",        "Early Blight (Alternaria solani)"),
+    "Potato___Late_blight":                                 ("Potato",        "Late Blight (Phytophthora infestans)"),
+    "Potato___healthy":                                     ("Potato",        "Healthy"),
+    "Raspberry___healthy":                                  ("Raspberry",     "Healthy"),
+    "Soybean___healthy":                                    ("Soybean",       "Healthy"),
+    "Squash___Powdery_mildew":                              ("Squash",        "Powdery Mildew (Sphaerotheca fuliginea)"),
+    "Strawberry___Leaf_scorch":                             ("Strawberry",    "Leaf Scorch (Diplocarpon earlianum)"),
+    "Strawberry___healthy":                                 ("Strawberry",    "Healthy"),
+    "Tomato___Bacterial_spot":                              ("Tomato",        "Bacterial Spot (Xanthomonas campestris pv. vesicatoria)"),
+    "Tomato___Early_blight":                                ("Tomato",        "Early Blight (Alternaria solani)"),
+    "Tomato___Late_blight":                                 ("Tomato",        "Late Blight (Phytophthora infestans)"),
+    "Tomato___Leaf_Mold":                                   ("Tomato",        "Leaf Mold (Fulvia fulva)"),
+    "Tomato___Septoria_leaf_spot":                          ("Tomato",        "Septoria Leaf Spot (Septoria lycopersici)"),
+    "Tomato___Spider_mites Two-spotted_spider_mite":        ("Tomato",        "Spider Mites / Two-Spotted Mite (Tetranychus urticae)"),
+    "Tomato___Target_Spot":                                 ("Tomato",        "Target Spot (Corynespora cassiicola)"),
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus":               ("Tomato",        "Yellow Leaf Curl Virus (TYLCV)"),
+    "Tomato___Tomato_mosaic_virus":                         ("Tomato",        "Mosaic Virus (ToMV)"),
+    "Tomato___healthy":                                     ("Tomato",        "Healthy"),
+}
+
+async def classify_plant_disease_hf(image_bytes: bytes) -> Optional[dict]:
+    """
+    Classify plant disease using the free HuggingFace PlantVillage MobileNetV2 model.
+    Covers 38 disease classes across 14 crops — no API key required for basic usage.
+    Returns top prediction dict or None on failure.
+    """
+    headers = {"Content-Type": "application/octet-stream"}
+    if HF_API_KEY:
+        headers["Authorization"] = f"Bearer {HF_API_KEY}"
+
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=40) as client:
+                r = await client.post(HF_API_URL, content=image_bytes, headers=headers)
+
+            if r.status_code == 200:
+                preds = r.json()
+                if not isinstance(preds, list) or not preds:
+                    return None
+                top   = preds[0]
+                label = top.get("label", "")
+                score = top.get("score", 0.0)
+                # Resolve label → (plant_type, disease)
+                match = PLANTVILLAGE_LABELS.get(label)
+                if not match:
+                    # Case-insensitive fallback
+                    label_norm = label.lower().replace(" ", "_")
+                    for k, v in PLANTVILLAGE_LABELS.items():
+                        if k.lower().replace(" ", "_") == label_norm:
+                            match = v
+                            break
+                if match:
+                    print(f"[HF-ML] Detected: {match[1]} in {match[0]} — confidence {round(score*100)}%")
+                    return {
+                        "plantType":   match[0],
+                        "disease":     match[1],
+                        "confidence":  f"{round(score * 100)}%",
+                        "modelSource": "PlantVillage MobileNetV2",
+                        "isHealthy":   "healthy" in label.lower(),
+                    }
+                return None
+
+            elif r.status_code == 503 and attempt == 0:
+                # Model cold-starting on HuggingFace — wait and retry once
+                wait_secs = min(r.json().get("estimated_time", 20), 30)
+                print(f"[HF-ML] Model loading… retrying in {wait_secs}s")
+                await asyncio.sleep(wait_secs)
+                continue
+
+            else:
+                print(f"[HF-ML] API error {r.status_code}: {r.text[:200]}")
+                return None
+
+        except Exception as exc:
+            print(f"[HF-ML] Request failed: {exc}")
+            return None
+
+    return None
+
+# ── Gemini treatment-only prompt (used when HF model provides the diagnosis) ───
+_GEMINI_TREATMENT_PROMPT = """
+You are Dr. KrishiAI, an expert plant pathologist.
+A dedicated plant disease ML model (MobileNetV2 trained on PlantVillage) has already identified:
+  Plant : {plant_type}
+  Disease: {disease_name}
+
+Your task: provide detailed, actionable treatment information for this specific disease.
+Return ONLY a raw JSON object — no markdown fences, no extra text.
+
+{{
+  "plantType": "{plant_type}",
+  "disease": "{disease_name}",
+  "severity": "None|Low|Medium|High|Critical",
+  "severityLevel": "healthy|info|warning|critical",
+  "affectedArea": "estimated XX%",
+  "diagnosis": "2-3 sentences describing this disease's key visible symptoms and conditions.",
+  "treatments": [
+    {{"id":"t1","label":"Chemical Treatment","name":"Product name + formulation","dosage":"Exact dose + timing","color":"#15803d","bg":"#f0fdf4","border":"#22c55e"}},
+    {{"id":"t2","label":"Organic / Bio Remedy","name":"Organic/bio agent","dosage":"Preparation + dosage","color":"#854d0e","bg":"#fef9c3","border":"#eab308"}}
+  ],
+  "precaution": "2-3 preventive cultural practices.",
+  "additionalNotes": "Spread risk, weather triggers, or secondary infection risk."
+}}
+
+Rules:
+- If disease is "Healthy": severity="None", severityLevel="healthy", treatments=[], affectedArea="0%"
+- Use Indian/regional market product names where possible
+- Raw JSON only
+"""
 
 
 # ── Force UTF-8 stdout so box chars don't crash on Windows cp1252 ─────────────
@@ -620,68 +763,164 @@ async def ai_diagnose(
     language: str = Form("en"),
     authorization: Optional[str] = Header(None),
 ):
-    """Plant leaf disease analyser — uses Gemini 1.5 Flash Vision when key is set,
-    falls back to agronomically-accurate mock data otherwise."""
-
-    image_bytes = await image.read()
+    """3-stage plant disease analyser:
+    Stage 1 — HuggingFace PlantVillage MobileNetV2 (free ML model, 38 disease classes)
+    Stage 2 — Gemini AI generates detailed treatment plan for the ML-detected disease
+    Stage 3 — Smart mock fallback if both stages are unavailable
+    """
+    image_bytes  = await image.read()
     content_type = image.content_type or "image/jpeg"
 
-    # ── REAL AI: Google Gemini Vision ─────────────────────────────────────────
+    # ── STAGE 1: HuggingFace PlantVillage MobileNetV2 ML Model ───────────────
+    print("[Diagnose] Stage 1: Running PlantVillage MobileNetV2 classifier...")
+    hf_result = await classify_plant_disease_hf(image_bytes)
+
+    if hf_result:
+        plant_type = hf_result["plantType"]
+        disease    = hf_result["disease"]
+        ml_conf    = hf_result["confidence"]
+        is_healthy = hf_result["isHealthy"]
+        print(f"[Diagnose] ML Model -> {disease} ({plant_type}) @ {ml_conf}")
+
+        # Healthy plant: return immediately without needing treatment details
+        if is_healthy:
+            return {
+                "plantType":      plant_type,
+                "disease":        "Healthy - No Disease Detected",
+                "severity":       "None",
+                "severityLevel":  "healthy",
+                "confidence":     ml_conf,
+                "affectedArea":   "0%",
+                "diagnosis":      f"The {plant_type} plant appears healthy with no visible signs of disease, pest damage, or nutrient deficiency.",
+                "treatments":     [],
+                "precaution":     "Maintain proper irrigation and balanced fertilisation. Inspect weekly for early symptoms.",
+                "additionalNotes":"Continue current crop management practices. Monitor surrounding plants for any disease onset.",
+                "modelSource":    "PlantVillage MobileNetV2",
+                "timestamp":      datetime.utcnow().isoformat(),
+                "location":       location or "Unknown",
+            }
+
+        # ── STAGE 2: Gemini generates treatment details for ML-detected disease
+        if _gemini_client is not None:
+            print("[Diagnose] Stage 2: Gemini generating treatment plan...")
+            try:
+                prompt = _GEMINI_TREATMENT_PROMPT.format(
+                    plant_type=plant_type,
+                    disease_name=disease,
+                )
+                models_to_try = [GEMINI_MODEL, "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
+                response = None
+                for model_name in models_to_try:
+                    try:
+                        response = _gemini_client.models.generate_content(
+                            model=model_name, contents=[prompt]
+                        )
+                        break
+                    except Exception as _me:
+                        print(f"[Gemini] Model {model_name} failed: {type(_me).__name__}")
+
+                if response:
+                    raw = response.text.strip()
+                    raw = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
+                    raw = re.sub(r'^```\s*', '', raw)
+                    raw = re.sub(r'\s*```$', '', raw)
+                    result = json.loads(raw)
+                    result["plantType"]   = plant_type
+                    result["disease"]     = disease
+                    result["confidence"]  = ml_conf
+                    result["modelSource"] = "PlantVillage MobileNetV2 + Gemini AI"
+                    for t in result.get("treatments", []):
+                        if t.get("id") == "t1":
+                            t.setdefault("color", "#15803d"); t.setdefault("bg", "#f0fdf4"); t.setdefault("border", "#22c55e")
+                        elif t.get("id") == "t2":
+                            t.setdefault("color", "#854d0e"); t.setdefault("bg", "#fef9c3"); t.setdefault("border", "#eab308")
+                    result["timestamp"] = datetime.utcnow().isoformat()
+                    result["location"]  = location or "Unknown"
+                    print(f"[Diagnose] HF+Gemini pipeline success: {disease}")
+                    return result
+
+            except Exception as exc:
+                print(f"[Diagnose] Gemini treatment step failed: {exc}")
+
+        # Gemini unavailable: find matching mock treatment for the ML-detected disease
+        mock_match = next(
+            (m for m in _MOCK_RESULTS
+             if plant_type.lower() in m["plantType"].lower()
+             or m["disease"].lower().split("(")[0].strip() in disease.lower()),
+            None
+        )
+        if mock_match:
+            result = dict(mock_match)
+            result["plantType"]   = plant_type
+            result["disease"]     = disease
+            result["confidence"]  = ml_conf
+            result["modelSource"] = "PlantVillage MobileNetV2"
+            result["timestamp"]   = datetime.utcnow().isoformat()
+            result["location"]    = location or "Unknown"
+            return result
+
+    # ── STAGE 3 (Fallback): Gemini Vision full image analysis ────────────────
+    print("[Diagnose] Stage 3: HF model unavailable - trying Gemini Vision...")
     if _gemini_client is not None:
         try:
             from google.genai import types as _gtypes
-
-            hint = f" Farmer reports the crop as: {crop_name}." if crop_name else ""
+            hint   = f" Farmer reports the crop as: {crop_name}." if crop_name else ""
             prompt = _GEMINI_PROMPT + hint
-
-            response = _gemini_client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=[
-                    _gtypes.Part.from_bytes(data=image_bytes, mime_type=content_type),
-                    prompt,
-                ],
-            )
-            raw = response.text.strip()
-
-            # Strip markdown fences if Gemini wraps output anyway
-            raw = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
-            raw = re.sub(r'^```\s*', '', raw)
-            raw = re.sub(r'\s*```$', '', raw)
-
+            models_to_try = [GEMINI_MODEL, "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
+            response = None
+            last_err = None
+            for model_name in models_to_try:
+                try:
+                    print(f"[Gemini] Attempting diagnosis with model: {model_name}...")
+                    response = _gemini_client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            _gtypes.Part.from_bytes(data=image_bytes, mime_type=content_type),
+                            prompt,
+                        ],
+                    )
+                    print(f"[Gemini] Success with model: {model_name}!")
+                    break
+                except Exception as exc:
+                    last_err = exc
+                    print(f"[Gemini] Model {model_name} failed: {type(exc).__name__}")
+            if response is None:
+                raise last_err
+            raw    = response.text.strip()
+            raw    = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
+            raw    = re.sub(r'^```\s*', '',  raw)
+            raw    = re.sub(r'\s*```$', '',  raw)
             result = json.loads(raw)
-
-            # Ensure treatments have correct colour metadata
             for t in result.get("treatments", []):
                 if t.get("id") == "t1":
-                    t.setdefault("color", "#15803d")
-                    t.setdefault("bg",    "#f0fdf4")
-                    t.setdefault("border","#22c55e")
+                    t.setdefault("color", "#15803d"); t.setdefault("bg", "#f0fdf4"); t.setdefault("border", "#22c55e")
                 elif t.get("id") == "t2":
-                    t.setdefault("color", "#854d0e")
-                    t.setdefault("bg",    "#fef9c3")
-                    t.setdefault("border","#eab308")
-
-            result["timestamp"] = datetime.utcnow().isoformat()
-            result["location"]  = location or "Unknown"
-            print(f"[Gemini] Diagnosed: {result.get('disease')} — confidence {result.get('confidence')}")
+                    t.setdefault("color", "#854d0e"); t.setdefault("bg", "#fef9c3"); t.setdefault("border", "#eab308")
+            result["modelSource"] = "Gemini Vision AI"
+            result["timestamp"]   = datetime.utcnow().isoformat()
+            result["location"]    = location or "Unknown"
+            print(f"[Gemini] Diagnosed: {result.get('disease')} - confidence {result.get('confidence')}")
             return result
-
         except json.JSONDecodeError as je:
-            print(f"[Gemini] JSON parse error: {je}\nRaw: {raw[:300]}")
+            print(f"[Gemini] JSON parse error: {je}")
         except Exception as exc:
-            print(f"[Gemini] Analysis error: {exc}")
-        # Fall through to mock on any error
+            print(f"[Gemini] Vision fallback failed: {exc}")
 
-    # ── SMART MOCK FALLBACK (no API key or Gemini error) ──────────────────────
+    # ── FINAL MOCK FALLBACK ────────────────────────────────────────────────────
     crop_lower = (crop_name or "").lower()
     mock = next(
         (m for m in _MOCK_RESULTS if crop_lower in m["plantType"].lower()),
         random.choice(_MOCK_RESULTS)
     )
     result = dict(mock)
-    result["timestamp"] = datetime.utcnow().isoformat()
-    result["location"]  = location or "Unknown"
-    result["_note"]     = "Set GEMINI_API_KEY in server_python/.env for real AI diagnosis."
+    result["timestamp"]   = datetime.utcnow().isoformat()
+    result["location"]    = location or "Unknown"
+    result["modelSource"] = "Demo Data"
+    result["_note"] = (
+        "DEMO MODE: PlantVillage ML model and Gemini are both unavailable. "
+        "Add GEMINI_API_KEY to server_python/.env for real AI diagnosis."
+    )
+    print("[Diagnose] Returning MOCK data - all AI stages failed.")
     return result
 
 

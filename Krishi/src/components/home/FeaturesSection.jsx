@@ -29,7 +29,7 @@ export default function FeaturesSection() {
     {
       icon: '🔬',
       title: 'AI Crop Analysis',
-      desc: 'Deep learning models analyze leaf spectra, soil composition, and weather patterns for precise crop health predictions.',
+      desc: 'PlantVillage MobileNetV2 ML model identifies 38 disease classes across 14 crops — leaves, fruits, and vegetables — with Gemini AI providing detailed treatment plans.',
       gradient: 'linear-gradient(135deg, #22C55E, #059669)'
     },
     {

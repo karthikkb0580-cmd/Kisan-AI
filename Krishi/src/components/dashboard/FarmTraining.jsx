@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const CROP_GUIDES = [
   {
@@ -45,14 +45,85 @@ const CROP_GUIDES = [
     duration: '110–130 days', yield: '8–12 qtl/acre', color: '#eab308',
     steps: [
       { title: 'Land Preparation', desc: 'One deep ploughing followed by 2 cultivations. Well-leveled field essential for uniform germination. Light sandy-loam to loam preferred.' },
-      { title: 'Variety Selection', desc: 'Varieties: Pusa Bold (eruca), Varuna, Kranti, RH-749. Erucic acid-free varieties preferred for edible use. Seed rate: 2–2.5 kg/acre.' },
-      { title: 'Sowing', desc: 'Optimal sowing: 1st–15th October. Row spacing: 30–45cm, depth: 2–3cm. Broadcasting reduces yield — use seed drill.' },
-      { title: 'Irrigation', desc: '2–3 irrigations: at branching (25 days), flowering (55 days), and pod formation (80 days). Excess water at flowering causes flower drop.' },
-      { title: 'Fertilization', desc: 'N:P:K = 40:20:10 kg/acre as basal. Apply 10kg Sulfur (Gypsum) for oil content improvement. Boron foliar spray at 0.5% at flowering.' },
-      { title: 'Pest & Disease', desc: 'Aphid: Dimethoate 30 EC; Alternaria Leaf spot: Mancozeb 75% WP; White Rust: Metalaxyl+Mancozeb. Monitor from January.' },
-      { title: 'Harvesting', desc: 'Harvest when 75% pods turn golden-yellow. Cut and bundle, sun dry 3–4 days, then thresh. Seeds should have 8–10% moisture for storage.' },
+      { title: 'Variety Selection', desc: 'Varieties: Pusa Bold (eruca), Varuna, Kranti, RH-749. Seed rate: 2–2.5 kg/acre.' },
+      { title: 'Sowing', desc: 'Optimal sowing: 1st–15th October. Row spacing: 30–45cm, depth: 2–3cm. Use seed drill.' },
+      { title: 'Irrigation', desc: '2–3 irrigations: at branching (25 days), flowering (55 days), and pod formation (80 days).' },
+      { title: 'Fertilization', desc: 'N:P:K = 40:20:10 kg/acre as basal. Apply 10kg Sulfur (Gypsum) for oil content improvement.' },
+      { title: 'Pest & Disease', desc: 'Aphid: Dimethoate 30 EC; Alternaria Leaf spot: Mancozeb 75% WP; White Rust: Metalaxyl+Mancozeb.' },
+      { title: 'Harvesting', desc: 'Harvest when 75% pods turn golden-yellow. Cut, bundle, and sun dry 3–4 days before threshing.' },
     ]
   },
+  {
+    id: 'sugarcane', name: 'Sugarcane', emoji: '🎋', season: 'Year-round (Feb–Mar)',
+    duration: '300–365 days', yield: '300–400 qtl/acre', color: '#059669',
+    steps: [
+      { title: 'Soil & Trenching', desc: 'Requires fertile clay loam soil with good drainage. Open trenches at 90cm spacing.' },
+      { title: 'Sett Treatment', desc: 'Select healthy 3-budded setts. Treat with Carbendazim (0.1%) to prevent red rot disease.' },
+      { title: 'Planting', desc: 'Place setts horizontally in trenches, cover with 5cm soil. Water immediately.' },
+      { title: 'Earthing Up', desc: 'Earth up twice: at 45 days (partial) and 120 days (full) to prevent plant lodging.' },
+      { title: 'Harvesting', desc: 'Harvest when bottom leaves dry and Brix hydrometer reading is 18–20%.' }
+    ]
+  },
+  {
+    id: 'maize', name: 'Maize (Corn)', emoji: '🌽', season: 'Kharif & Rabi',
+    duration: '95–115 days', yield: '20–30 qtl/acre', color: '#f59e0b',
+    steps: [
+      { title: 'Sowing', desc: 'Sow at 8kg/acre. Spacing: 60×20cm at 4-5cm depth. Apply FYM basal dose.' },
+      { title: 'Irrigation', desc: 'Highly sensitive to waterlogging. Irrigate at knee-high, tasseling, and silking stages.' },
+      { title: 'Fertilization', desc: 'N:P:K = 60:30:30 kg/acre. Split Nitrogen into 3 doses: basal, knee-high, and silking.' },
+      { title: 'Harvesting', desc: 'Harvest when husk turns yellow/papery and grains have a dark moisture layer.' }
+    ]
+  },
+  {
+    id: 'soybean', name: 'Soybean', emoji: '🫘', season: 'Kharif (Jun–Sep)',
+    duration: '90–105 days', yield: '8–12 qtl/acre', color: '#10b981',
+    steps: [
+      { title: 'Seed Inoculation', desc: 'Treat seeds with Rhizobium culture (200g/10kg seeds) to enhance nitrogen fixation.' },
+      { title: 'Sowing', desc: 'Sow at 30kg/acre with 45×10cm spacing. Maintain 3-4cm depth in moist seedbed.' },
+      { title: 'Nutrients', desc: 'Apply basal N:P:K = 8:32:16 kg/acre. Soybean fixes its own nitrogen, so limit nitrogenous fertilizer.' },
+      { title: 'Harvesting', desc: 'Harvest when leaves fall off and pods turn brown. Shake pods: seeds should rattle inside.' }
+    ]
+  },
+  {
+    id: 'groundnut', name: 'Groundnut', emoji: '🥜', season: 'Kharif (Jun–Oct)',
+    duration: '110–125 days', yield: '10–15 qtl/acre', color: '#b45309',
+    steps: [
+      { title: 'Soil Selection', desc: 'Prefers well-drained, sandy loam soil. Heavy soils restrict pod expansion.' },
+      { title: 'Sowing', desc: 'Sow at 40kg kernels/acre at 30×10cm spacing, 5cm depth.' },
+      { title: 'Gypsum Application', desc: 'Apply Gypsum (200 kg/acre) at pegging stage (45 days) to supply Calcium for pod development.' },
+      { title: 'Harvesting', desc: 'Dig out vines when leaf spot occurs or inside of pod shell turns black.' }
+    ]
+  },
+  {
+    id: 'millets', name: 'Millets (Bajra/Jowar)', emoji: '🌾', season: 'Kharif (Jun–Sep)',
+    duration: '80–90 days', yield: '12–18 qtl/acre', color: '#84cc16',
+    steps: [
+      { title: 'Land Preparation', desc: 'Requires fine seedbed. Tolerates poor, drought-prone soils. Excellent for arid zones.' },
+      { title: 'Sowing & Thinning', desc: 'Sow at 1.5-2kg/acre, spacing 45×15cm. Thin out weak seedlings at 15 days.' },
+      { title: 'Weed Control', desc: 'Intercultivate twice at 20 and 40 days using hoe to preserve soil moisture.' },
+      { title: 'Harvesting', desc: 'Harvest when grains turn hard (moisture below 20%). Cut panicles first.' }
+    ]
+  },
+  {
+    id: 'potato', name: 'Potato', emoji: '🥔', season: 'Rabi (Oct–Feb)',
+    duration: '90–120 days', yield: '80–120 qtl/acre', color: '#a1a1aa',
+    steps: [
+      { title: 'Seed Preparation', desc: 'Use certified disease-free seed tubers (30-45g each) with healthy eyes.' },
+      { title: 'Sowing & Ridges', desc: 'Plant tubers on ridges spaced at 60cm, with 20cm spacing between tubers.' },
+      { title: 'Earthing Up', desc: 'Build up soil around stems at 25 and 45 days to prevent tubers from turning green.' },
+      { title: 'Harvesting', desc: 'Stop watering 10 days before harvest. Cut vines (dehaulming) to harden tuber skins.' }
+    ]
+  },
+  {
+    id: 'pulses', name: 'Pulses (Gram/Lentils)', emoji: '🫛', season: 'Rabi & Kharif',
+    duration: '110–130 days', yield: '6–8 qtl/acre', color: '#16a34a',
+    steps: [
+      { title: 'Sowing', desc: 'Sow at 15-20kg/acre. Deep sowing (8cm) protects against wilt disease.' },
+      { title: 'Rhizobium Treatment', desc: 'Treat seeds with Rhizobium and PSB cultures to maximize phosphate solubility.' },
+      { title: 'Watering', desc: 'Requires minimal water. 1-2 light irrigations at pre-flowering and pod filling.' },
+      { title: 'Harvesting', desc: 'Harvest when leaves turn yellow and pods dry out completely to straw color.' }
+    ]
+  }
 ]
 
 const LIVESTOCK_GUIDES = [
@@ -62,56 +133,68 @@ const LIVESTOCK_GUIDES = [
     yield: '15–30 L/day (HF), 8–12 L (Desi)',
     color: '#3b82f6',
     steps: [
-      { title: 'Housing', desc: 'Provide 40–50 sq.ft per cow. Well-ventilated, clean concrete flooring with proper slope for drainage. Shade in summer, wind protection in winter.' },
-      { title: 'Feeding', desc: 'Dry roughage: 5–8 kg/day. Green fodder: 20–25 kg/day. Concentrate: 1kg per 2.5L milk produced. Always provide salt lick blocks and fresh water.' },
-      { title: 'Milking Routine', desc: 'Milk twice daily at fixed 12-hour intervals. Clean udder with warm water before milking. Use strip cup test to detect mastitis early. Complete milking within 5 minutes.' },
-      { title: 'Vaccination Schedule', desc: 'FMD (Foot & Mouth): every 6 months. BQ (Black Quarter): annually before monsoon. HS (Hemorrhagic Septicemia): before monsoon. Anthrax: annually in endemic areas.' },
-      { title: 'Health Monitoring', desc: 'Healthy signs: Bright eyes, wet muzzle, good appetite, firm normal dung. Warning signs: Lethargy, reduced milk output, nasal discharge, off-feed behavior.' },
-      { title: 'Breeding', desc: 'Heat signs: restlessness, vulva swelling, mucus discharge, standing to be mounted. Artificial Insemination preferred. Optimal time: 12–18 hours after heat onset.' },
+      { title: 'Housing', desc: 'Provide 40–50 sq.ft per cow. Well-ventilated concrete flooring with proper slope. Shade in summer.' },
+      { title: 'Feeding', desc: 'Dry roughage: 5–8 kg/day. Green fodder: 20–25 kg/day. Concentrate: 1kg per 2.5L milk produced.' },
+      { title: 'Milking Routine', desc: 'Milk twice daily at 12-hour intervals. Clean udder with warm water before milking.' },
+      { title: 'Vaccination', desc: 'FMD (Foot & Mouth) every 6 months. Black Quarter (BQ) and HS before monsoon annually.' },
+      { title: 'Breeding', desc: 'Artificial Insemination preferred. Optimal breeding time: 12–18 hours after heat onset.' },
     ]
   },
   {
     id: 'buffalo', name: 'Buffalo', emoji: '🐃',
-    breed: 'Murrah, Surti, Mehsana, Jaffarabadi',
+    breed: 'Murrah, Surti, Mehsana',
     yield: '10–18 L milk/day, 6–7% fat',
     color: '#475569',
     steps: [
-      { title: 'Housing & Wallowing', desc: 'Provide wallow pond or large water tank — essential for body temperature regulation. 50–60 sq.ft space per animal. Shade trees or roof mandatory.' },
-      { title: 'Feeding', desc: 'Efficient roughage converters. Green fodder: 30–35 kg/day. Dry roughage: 5–7 kg. Concentrate: 1kg/3L milk. High-fiber TMR (Total Mixed Ration) recommended.' },
-      { title: 'Daily Wallowing', desc: 'Allow 30–60 minutes daily wallowing in clean mud/water. Prevents heat stress (buffaloes have fewer sweat glands), ticks, and skin parasites. Critical in summer.' },
-      { title: 'Milking', desc: 'Milk 2–3× daily. Buffalo milk has 6–7% fat — excellent for ghee, paneer, and khoa. Allow calf to suckle 2 minutes before milking to fully let down milk.' },
-      { title: 'Vaccination', desc: 'Same as cattle: FMD, HS, BQ. Additionally: Brucellosis vaccination for heifers 4–8 months old in endemic zones (one-time lifetime vaccination).' },
-      { title: 'Breeding & Reproduction', desc: 'Silent heat common — watch for vulva swelling, clear mucus, tail raising. Murrah breed has excellent dairy genetics. AI available through NDDB network centers.' },
+      { title: 'Wallowing Pond', desc: 'Allow 30–60 minutes wallowing daily. Buffaloes have fewer sweat glands and need water to cool down.' },
+      { title: 'Housing', desc: 'Provide 50–60 sq.ft per buffalo. Roof must have high thermal insulation to avoid heat stress.' },
+      { title: 'Feeding', desc: 'Excellent roughage converters. Provide 30kg green fodder and 1kg concentrate per 3L milk.' },
+      { title: 'Vaccination', desc: 'Regular FMD, HS, BQ schedules. Brucellosis vaccine for young calves once in lifetime.' },
     ]
   },
   {
     id: 'goat', name: 'Goat Farming', emoji: '🐐',
-    breed: 'Boer, Beetal, Sirohi, Jakhrana, Black Bengal',
-    yield: '1–3 L milk/day; Meat: 15–25 kg/adult',
+    breed: 'Boer, Beetal, Sirohi, Sirohi cross',
+    yield: '1–3 L milk/day; Meat: 15–25 kg',
     color: '#f59e0b',
     steps: [
-      { title: 'Housing Setup', desc: 'Elevated platform (2–3 ft) housing prevents hoof diseases and internal parasite cycles. 10–15 sq.ft per goat. Separate pens for kids, pregnant does, and bucks.' },
-      { title: 'Feeding', desc: 'Goats prefer browsing. Provide tree leaves, shrubs, kitchen waste, and crop residues. Concentrate: 200–300g/day for milking does. Mineral mixture essential year-round.' },
-      { title: 'Deworming & Hoof Care', desc: 'Deworm every 3 months with Albendazole 7.5mg/kg or Ivermectin 0.2mg/kg. Trim hooves every 3 months. Rotate dewormers to prevent resistance.' },
-      { title: 'Vaccination', desc: 'PPR (Goat Plague): Every 3 years. FMD: Twice yearly. Enterotoxemia (Clostridium): Annual. Goat Pox: Annual in endemic regions. Maintain vaccination records.' },
-      { title: 'Breeding', desc: 'First breeding: 7–8 months (minimum 15–18 kg weight). Gestation: 148–152 days. Buck ratio: 1:25 does. Twin births common in Beetal and Sirohi breeds.' },
-      { title: 'Economics', desc: 'Low investment, quick returns in 18 months. 10 does + 1 buck can return ₹1.5–2 Lakh/year through meat, milk, and manure. Festival season commands 2× market price.' },
+      { title: 'Elevated Housing', desc: 'Raised wooden platform housing prevents foot rot and parasite ingestion cycles.' },
+      { title: 'Feeding', desc: 'Browsers by nature. Provide shrubs, tree leaves (Subabul), dry hay, and mineral blocks.' },
+      { title: 'Deworming', desc: 'Deworm every 3 months. Alternate deworming formulas to prevent parasite immunity.' },
+      { title: 'Vaccination', desc: 'PPR vaccine every 3 years. Enterotoxemia and Goat Pox vaccine annually.' },
     ]
   },
   {
     id: 'poultry', name: 'Poultry Farming', emoji: '🐔',
-    breed: 'Broiler: Cobb-400; Layer: BV-300, Hy-Line; Desi: Kadaknath',
-    yield: 'Broiler: 2kg/40 days; Layer: 300–320 eggs/year',
+    breed: 'Broiler: Cobb-400; Layer: BV-300; Desi: Kadaknath',
+    yield: 'Broiler: 2kg/40 days; Layer: 300 eggs/yr',
     color: '#f97316',
     steps: [
-      { title: 'Shed Setup', desc: 'Orient shed East-West. Space: 1 sq.ft/broiler, 2 sq.ft/layer. Litter: 4–5 inches dry rice husk. Install cross-ventilation curtains. Biosecurity gate and footbath mandatory.' },
-      { title: 'Brooding (0–4 weeks)', desc: 'Day 1–7: 35°C. Reduce 2.5°C per week until 21°C. Use electric/gas brooders. Check chick distribution — huddling means cold, spreading away means hot.' },
-      { title: 'Feed Management', desc: 'Broiler: Prestarter → Starter (0–18d) → Grower (18–28d) → Finisher (28–slaughter). Layer: Phase feeding with 3.5–4% calcium in layer mash. Always fresh, clean water.' },
-      { title: 'Vaccination', desc: 'Newcastle (Lasota F1): Day 5 & 21 (eye drop). Gumboro (IBD): Day 14 & 21. Marek\'s Disease: At hatchery level. Fowl Pox: Day 28 (wing web method). Maintain cold chain.' },
-      { title: 'Disease Control', desc: 'Ranikhet: Sudden death, nervous twisting. CRD: Gurgling respiratory sounds — treat with Tylosin. Coccidiosis: Bloody droppings — Amprolium in water. Strict litter management prevents most.' },
-      { title: 'Marketing', desc: 'Broilers ready at 40–45 days (2–2.2 kg live weight). Contact aggregators or direct retail. Layer eggs: collect 2–3× daily, grade by size, store at 15°C. Reject cracked eggs.' },
+      { title: 'Shed Orientation', desc: 'Build shed in East-West direction to prevent direct sun glare. Maintain dry litter.' },
+      { title: 'Brooding (Week 1)', desc: 'Maintain 35°C under artificial heat lamps. Cold drafts will kill chicks.' },
+      { title: 'Disease Management', desc: 'Newcastle (Ranikhet) vaccine at day 5 & 21. Strictly control human entry.' },
+      { title: 'Marketing', desc: 'Sell broilers at 42 days. Grade and collect eggs 3 times daily; keep at 15°C.' },
     ]
   },
+]
+
+// Map Soil / Geolocation Region to suitable Crop IDs and Livestock IDs
+const REGION_SUITABLE_MAP = [
+  {
+    soilName: 'Alluvial Soil Plains (Northern India)',
+    crops: ['wheat', 'rice', 'mustard', 'sugarcane', 'maize'],
+    livestock: ['cow', 'buffalo', 'poultry']
+  },
+  {
+    soilName: 'Black Cotton Soil Belt (Central/Deccan India)',
+    crops: ['cotton', 'soybean', 'maize', 'wheat', 'groundnut'],
+    livestock: ['goat', 'buffalo', 'poultry']
+  },
+  {
+    soilName: 'Red and Yellow Soil Region (Eastern/Southern India)',
+    crops: ['groundnut', 'millets', 'maize', 'pulses', 'potato'],
+    livestock: ['goat', 'poultry', 'cow']
+  }
 ]
 
 export default function FarmTraining() {
@@ -119,12 +202,100 @@ export default function FarmTraining() {
   const [expandedId, setExpandedId] = useState(null)
   const [expandedStep, setExpandedStep] = useState(null)
 
-  const guides = activeCategory === 'crops' ? CROP_GUIDES : LIVESTOCK_GUIDES
+  // Location-based states
+  const [userPos, setUserPos] = useState({ lat: 31.634, lng: 74.872 }) // default Amritsar (Alluvial)
+  const [soilIndex, setSoilIndex] = useState(0)
+  const [locationName, setLocationName] = useState('Alluvial Soil Plains (Northern India)')
+  const [locating, setLocating] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  const fetchLocation = () => {
+    setLocating(true)
+    setLocationError('')
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation not supported by this browser. Defaulting to Amritsar APMC region.')
+      setLocating(false)
+      determineRegion(31.634, 74.872)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        setUserPos({ lat, lng })
+        determineRegion(lat, lng)
+        setLocating(false)
+      },
+      () => {
+        setLocationError('Access denied / timeout. Using fallback Amritsar region.')
+        determineRegion(31.634, 74.872)
+        setLocating(false)
+      },
+      { timeout: 6000 }
+    )
+  }
+
+  const determineRegion = (lat, lng) => {
+    let idx = 2
+    let name = 'Red & Yellow Soil Region (Eastern/Southern India)'
+    if (lat > 28) {
+      idx = 0
+      name = 'Alluvial Soil Plains (Northern India)'
+    } else if (lat > 16 && lat < 26 && lng > 72 && lng < 81) {
+      idx = 1
+      name = 'Black Cotton Soil Belt (Central/Deccan India)'
+    }
+    setSoilIndex(idx)
+    setLocationName(name)
+  }
+
+  useEffect(() => {
+    fetchLocation()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const activeRegion = REGION_SUITABLE_MAP[soilIndex]
+  const filteredCrops = CROP_GUIDES.filter(c => activeRegion.crops.includes(c.id))
+  const filteredLivestock = LIVESTOCK_GUIDES.filter(l => activeRegion.livestock.includes(l.id))
+  const guides = activeCategory === 'crops' ? filteredCrops : filteredLivestock
 
   return (
     <div className="db-section">
-      <h1 className="db-page-title">🎓 Farm Training Academy</h1>
-      <p className="db-page-sub">Step-by-step agronomic and livestock management guides curated by agricultural scientists.</p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.2rem' }}>
+        <h1 className="db-page-title" style={{ margin: 0 }}>🎓 Farm Training Academy</h1>
+        <button 
+          onClick={fetchLocation} 
+          disabled={locating}
+          className="nm-locate-btn"
+          style={{ cursor: 'pointer', fontSize: '0.75rem', padding: '0.4rem 0.8rem' }}
+        >
+          {locating ? '📡 Scanning Location…' : '📍 Sync Location'}
+        </button>
+      </div>
+
+      <div style={{ 
+        background: 'rgba(34,197,94,0.06)', 
+        border: '1.5px solid rgba(34,197,94,0.2)', 
+        borderRadius: '12px', 
+        padding: '0.75rem 1rem', 
+        marginBottom: '1.25rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <div style={{ fontSize: '0.8rem', color: 'var(--text)' }}>
+          📍 Current Zone: <strong style={{ color: '#22c55e' }}>{locationName}</strong>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text3)', display: 'block', marginTop: '0.1rem' }}>
+            Showing only agricultural varieties native to your location coordinates ({userPos.lat.toFixed(3)}°N, {userPos.lng.toFixed(3)}°E).
+          </span>
+        </div>
+        {locationError && (
+          <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 'bold' }}>⚠️ {locationError}</span>
+        )}
+      </div>
 
       {/* Category Tabs */}
       <div className="ft-tabs">
@@ -132,13 +303,13 @@ export default function FarmTraining() {
           onClick={() => { setActiveCategory('crops'); setExpandedId(null) }}
           className={`ft-tab-btn ${activeCategory === 'crops' ? 'active-crop' : ''}`}
         >
-          🌾 Crop Growing Guides
+          🌾 Crop Growing Guides ({filteredCrops.length})
         </button>
         <button
           onClick={() => { setActiveCategory('livestock'); setExpandedId(null) }}
           className={`ft-tab-btn ${activeCategory === 'livestock' ? 'active-live' : ''}`}
         >
-          🐄 Livestock & Poultry
+          🐄 Livestock & Poultry ({filteredLivestock.length})
         </button>
       </div>
 
@@ -148,7 +319,10 @@ export default function FarmTraining() {
           <div
             key={guide.id}
             className="ft-guide-card"
-            style={{ borderColor: expandedId === guide.id ? guide.color : undefined, boxShadow: expandedId === guide.id ? `4px 4px 0 0 ${guide.color}` : undefined }}
+            style={{ 
+              borderColor: expandedId === guide.id ? guide.color : undefined, 
+              boxShadow: expandedId === guide.id ? `4px 4px 0 0 ${guide.color}` : undefined 
+            }}
           >
             {/* Card Header Button */}
             <button
@@ -171,7 +345,7 @@ export default function FarmTraining() {
                 <span className="ft-chevron" style={{ color: guide.color, transform: expandedId === guide.id ? 'rotate(180deg)' : 'none' }}>▼</span>
               </div>
               <div className="ft-yield-bar" style={{ background: `${guide.color}12` }}>
-                <span>💰 {guide.yield}</span>
+                <span>💰 Yield: {guide.yield}</span>
                 <span style={{ color: guide.color, fontWeight: '700' }}>View {guide.steps.length} steps →</span>
               </div>
             </button>
