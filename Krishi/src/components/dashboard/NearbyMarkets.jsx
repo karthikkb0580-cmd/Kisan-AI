@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { AIAPI } from '../../services/api'
+import { useFarmvestStore } from '../../store/useFarmvestStore'
 
 // Fix Vite + Leaflet default icon path issue
 delete L.Icon.Default.prototype._getIconUrl
@@ -46,15 +48,6 @@ const userIcon = L.divIcon({
   iconAnchor: [10, 10],
 })
 
-// Fallback high-fidelity regional Mandis (Punjab & surrounding) if Overpass yields nothing
-const PUNJAB_MANDIS = [
-  { name: 'Amritsar APMC Mandi', lat: 31.6340, lng: 74.8720, address: 'GT Road, Amritsar, Punjab', type: 'APMC Market' },
-  { name: 'Ludhiana Grain Market', lat: 30.9010, lng: 75.8570, address: 'Gill Road, Ludhiana, Punjab', type: 'Grain Market' },
-  { name: 'Jalandhar Veg Mandi', lat: 31.3260, lng: 75.5760, address: 'Maqsudan, Jalandhar, Punjab', type: 'Vegetable Market' },
-  { name: 'Patiala Wholesale Hub', lat: 30.3400, lng: 76.3800, address: 'Sanaur Road, Patiala, Punjab', type: 'Wholesale Mandi' },
-  { name: 'Ferozepur Mandi', lat: 30.9240, lng: 74.6220, address: 'Cantt Area, Ferozepur, Punjab', type: 'APMC Market' },
-  { name: 'Bathinda Oil & Grain Mandi', lat: 30.2110, lng: 74.9450, address: 'Mandi Road, Bathinda, Punjab', type: 'Oilseed Market' },
-]
 
 // Haversine distance helper
 const haversine = (lat1, lng1, lat2, lng2) => {
@@ -74,6 +67,7 @@ function MapController({ center, zoom }) {
 }
 
 export default function NearbyMarkets() {
+  const { farmerCrops } = useFarmvestStore()
   const [phase, setPhase] = useState('idle') // idle | locating | loading | ready | error
   const [error, setError] = useState('')
   const [userPos, setUserPos] = useState(null)
@@ -84,6 +78,10 @@ export default function NearbyMarkets() {
   const [routeInstructions, setRouteInstructions] = useState([])
   const [isNavigating, setIsNavigating] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
+  const [cropGrown, setCropGrown] = useState(farmerCrops[0] || 'Wheat')
+
+  const ALL_KNOWN_CROPS = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Mustard', 'Tomato', 'Potato', 'Onion', 'Soybean', 'Apple', 'Grape']
+  const otherCrops = ALL_KNOWN_CROPS.filter(c => !farmerCrops.includes(c))
 
   const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
 
@@ -163,7 +161,7 @@ export default function NearbyMarkets() {
     return null
   }
 
-  const loadData = useCallback(async (pos) => {
+  const loadData = useCallback(async (pos, currentCrop = '') => {
     setPhase('loading')
     setError('')
     setSelectedIdx(null)
@@ -177,15 +175,26 @@ export default function NearbyMarkets() {
       try {
         list = await fetchOverpassMarkets(pos.lat, pos.lng)
       } catch (e) {
-        console.warn('Overpass API failed, falling back to static regional mandis.', e)
+        console.warn('Overpass API failed.', e)
       }
 
-      // If no open-source markets returned, populate with high-fidelity fallback mandis relative to position
       if (list.length === 0) {
-        list = PUNJAB_MANDIS.map((m, index) => ({
-          id: `fallback-${index}`,
-          ...m,
-        }))
+        setPhase('error')
+        setError('No physical agricultural markets found nearby.')
+        setMarkets([])
+        return
+      }
+
+      // If a crop is specified, use AI to filter/analyze
+      if (currentCrop.trim()) {
+        try {
+          const aiAnalyzed = await AIAPI.analyzeMarkets(list, currentCrop.trim())
+          if (aiAnalyzed && aiAnalyzed.length > 0) {
+            list = aiAnalyzed
+          }
+        } catch (e) {
+          console.warn('AI Analysis failed, falling back to raw list.', e)
+        }
       }
 
       // Calculate distances
@@ -197,14 +206,9 @@ export default function NearbyMarkets() {
       setMarkets(sorted)
       setPhase('ready')
     } catch (err) {
-      setError('Could not retrieve real market coordinates. Using local region fallback.')
-      const fallbackList = PUNJAB_MANDIS.map((m, index) => ({
-        id: `fallback-${index}`,
-        ...m,
-        dist: haversine(pos.lat, pos.lng, m.lat, m.lng),
-      })).sort((a, b) => a.dist - b.dist)
-      setMarkets(fallbackList)
-      setPhase('ready')
+      setError('An error occurred while finding markets.')
+      setMarkets([])
+      setPhase('error')
     }
   }, [])
 
@@ -213,27 +217,35 @@ export default function NearbyMarkets() {
     setError('')
     if (!navigator.geolocation) {
       setUserPos(DEFAULT_POS)
-      loadData(DEFAULT_POS)
+      loadData(DEFAULT_POS, cropGrown)
       return
     }
     navigator.geolocation.getCurrentPosition(
       pos => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
         setUserPos(p)
-        loadData(p)
+        loadData(p, cropGrown)
       },
       () => {
         setError('Location access denied — showing default Amritsar region.')
         setUserPos(DEFAULT_POS)
-        loadData(DEFAULT_POS)
+        loadData(DEFAULT_POS, cropGrown)
       },
       { timeout: 8000, enableHighAccuracy: true }
     )
-  }, [loadData])
+  }, [loadData, cropGrown])
 
   useEffect(() => {
     getLocation()
-  }, [getLocation])
+  }, []) // run once on mount
+
+  const handleAnalyze = () => {
+    if (userPos) {
+      loadData(userPos, cropGrown)
+    } else {
+      getLocation()
+    }
+  }
 
   // Get route coordinates when market selected
   useEffect(() => {
@@ -310,18 +322,52 @@ export default function NearbyMarkets() {
 
   return (
     <div className="db-section">
-      <div className="nm-header-row">
+      <div className="nm-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div>
           <h1 className="db-page-title">🛒 Nearby Markets</h1>
-          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — 100% free cardless location search.</p>
+          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — analyzed by AI.</p>
         </div>
-        <button 
-          className="nm-locate-btn" 
-          onClick={getLocation} 
-          disabled={phase === 'locating' || phase === 'loading'}
-        >
-          {phase === 'locating' ? '📡 Locating…' : phase === 'loading' ? '🔍 Searching…' : '📍 Refresh Location'}
-        </button>
+        
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <select 
+            value={cropGrown}
+            onChange={(e) => setCropGrown(e.target.value)}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              border: '1.5px solid var(--border)',
+              background: 'var(--bg2)',
+              color: 'var(--text)',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              minWidth: '220px',
+              cursor: 'pointer'
+            }}
+          >
+            <optgroup label="Your Priority Crops">
+              {farmerCrops.map(c => <option key={c} value={c}>{c}</option>)}
+            </optgroup>
+            <optgroup label="Other Crops">
+              {otherCrops.map(c => <option key={c} value={c}>{c}</option>)}
+            </optgroup>
+          </select>
+          <button 
+            className="nm-locate-btn" 
+            onClick={handleAnalyze} 
+            disabled={phase === 'locating' || phase === 'loading'}
+            style={{ background: '#22c55e', color: 'white' }}
+          >
+            {phase === 'locating' ? '📡 Locating…' : phase === 'loading' ? '🔍 Analyzing…' : '✨ Analyze Markets'}
+          </button>
+          <button 
+            className="nm-locate-btn" 
+            onClick={getLocation} 
+            disabled={phase === 'locating' || phase === 'loading'}
+            style={{ background: '#3b82f6', color: 'white' }}
+          >
+            📍 Location
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -366,10 +412,15 @@ export default function NearbyMarkets() {
                   }}
                 >
                   <Popup>
-                    <div style={{ padding: '0.2rem' }}>
+                    <div style={{ padding: '0.2rem', maxWidth: '220px' }}>
                       <strong style={{ fontSize: '0.85rem' }}>{m.name}</strong>
                       <p style={{ margin: '0.2rem 0', fontSize: '0.75rem', color: '#64748b' }}>{m.address}</p>
                       <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#16a34a' }}>📏 {m.dist} km away</span>
+                      {m.reasoning && (
+                        <div style={{ marginTop: '0.4rem', padding: '0.4rem', background: '#f0fdf4', borderLeft: '3px solid #22c55e', fontSize: '0.7rem', color: '#166534', lineHeight: 1.3 }}>
+                          <strong>AI Analysis:</strong> {m.reasoning}
+                        </div>
+                      )}
                     </div>
                   </Popup>
                 </Marker>
@@ -463,6 +514,12 @@ export default function NearbyMarkets() {
                     Truck duration: approx {routeInfo.duration}
                   </p>
                 )}
+                {selectedMarket.reasoning && (
+                  <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fff', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '0.75rem', color: '#166534', lineHeight: 1.4 }}>
+                    <strong>✨ Why this market?</strong><br/>
+                    {selectedMarket.reasoning}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
                 <a
@@ -533,6 +590,11 @@ export default function NearbyMarkets() {
                           {m.type}
                         </span>
                       </div>
+                      {m.reasoning && (
+                        <p style={{ fontSize: '0.7rem', color: '#15803d', margin: '0.3rem 0 0 1.6rem', padding: '0.3rem', background: '#f0fdf4', borderRadius: '4px' }}>
+                          ✨ {m.reasoning}
+                        </p>
+                      )}
                     </div>
                     <a
                       href={getGoogleMapsLink(m)}

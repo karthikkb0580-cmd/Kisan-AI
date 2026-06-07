@@ -236,6 +236,12 @@ export const AIAPI = {
       method: 'POST',
       body: JSON.stringify({ location, crop_name: cropName, language }),
     }),
+
+  analyzeMarkets: (markets, cropName, language = 'en') =>
+    apiFetch('/ai/analyze-markets', {
+      method: 'POST',
+      body: JSON.stringify({ markets, crop_name: cropName, language }),
+    }),
 }
 
 // ── Health check ──────────────────────────────────────────────────────────────

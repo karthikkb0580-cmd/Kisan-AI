@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useFarmvestStore } from '../../store/useFarmvestStore'
 
 const MARKETS = [
   'Amritsar APMC', 'Ludhiana Grain', 'Jalandhar Mandi', 'Patiala Wholesale', 'Ferozepur Mandi', 'Bathinda Oil'
@@ -106,11 +107,13 @@ const kmDist = (lat1, lng1, lat2, lng2) => {
 const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
 
 export default function MarketPrices() {
+  const { farmerCrops, setFarmerCrops } = useFarmvestStore()
   const [activeCrop, setActiveCrop] = useState(null)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [sortedMarkets, setSortedMarkets] = useState([])
   const [userPos, setUserPos] = useState(null)
+  const [cropInput, setCropInput] = useState(farmerCrops.join(', '))
 
   const getLocation = () => {
     setLocating(true)
@@ -166,20 +169,56 @@ export default function MarketPrices() {
 
   const nearestMarket = orderedMarkets[0]
 
+  // Split crops: farmer's own crops first, then the rest
+  const farmerCropNames = farmerCrops.map(f => f.toLowerCase())
+  const myCrops   = CROPS.filter(c => farmerCropNames.includes(c.name.toLowerCase()))
+  const otherCrops = CROPS.filter(c => !farmerCropNames.includes(c.name.toLowerCase()))
+  const orderedCrops = [...myCrops, ...otherCrops]
+
+  const handleSaveCrops = () => {
+    const parsed = cropInput.split(',').map(s => s.trim()).filter(Boolean)
+    setFarmerCrops(parsed)
+  }
+
   return (
     <div className="db-section">
-      <div className="nm-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+      <div className="nm-header-row" style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '1rem' }}>
         <div>
           <h1 className="db-page-title">💹 Market Prices</h1>
-          <p className="db-page-sub">Live crop price matrix ordered by distance to your current location.</p>
+          <p className="db-page-sub">Live crop price matrix — your crops shown first.</p>
         </div>
-        <button
-          className="nm-locate-btn"
-          onClick={getLocation}
-          disabled={locating}
-        >
-          {locating ? '📡 Locating…' : '📍 Refresh Location'}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+          <button
+            className="nm-locate-btn"
+            onClick={getLocation}
+            disabled={locating}
+          >
+            {locating ? '📡 Locating…' : '📍 Refresh Location'}
+          </button>
+          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              value={cropInput}
+              onChange={e => setCropInput(e.target.value)}
+              placeholder="Your crops (comma separated)"
+              style={{
+                padding: '0.4rem 0.75rem',
+                borderRadius: '7px',
+                border: '1.5px solid var(--border)',
+                background: 'var(--bg2)',
+                color: 'var(--text)',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                minWidth: '200px'
+              }}
+            />
+            <button
+              onClick={handleSaveCrops}
+              style={{ padding: '0.4rem 0.75rem', borderRadius: '7px', background: '#22c55e', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '0.75rem', cursor: 'pointer' }}
+            >Save My Crops</button>
+          </div>
+          <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', margin: 0 }}>🌱 Your crops: <strong style={{ color: 'var(--accent)' }}>{farmerCrops.join(', ')}</strong></p>
+        </div>
       </div>
 
       {locationError && (
@@ -210,24 +249,29 @@ export default function MarketPrices() {
         </div>
 
         <div className="mp-nearest-prices-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.75rem', marginTop: '1rem' }}>
-          {CROPS.map(c => {
+          {orderedCrops.map(c => {
+            const isFarmerCrop = farmerCropNames.includes(c.name.toLowerCase())
             const price = c.prices[nearestMarket.idx]
             const max = Math.max(...c.prices)
             const isBest = price === max
             return (
               <div key={c.name} className="mp-nearest-item" style={{ 
-                background: isBest ? '#f0fdf4' : '#f8fafc', 
-                border: isBest ? '2px solid #22c55e' : '2px solid #e2e8f0', 
+                background: isFarmerCrop ? (isBest ? '#f0fdf4' : '#f8fafc') : (isBest ? '#f0fdf4' : '#fff'),
+                border: isFarmerCrop ? `2px solid ${isBest ? '#22c55e' : '#86efac'}` : (isBest ? '2px solid #22c55e' : '2px solid #e2e8f0'),
                 borderRadius: '12px', 
                 padding: '0.75rem', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 gap: '0.2rem',
-                boxShadow: isBest ? '3px 3px 0 0 #22c55e' : 'none'
+                boxShadow: isFarmerCrop ? '3px 3px 0 0 #86efac' : (isBest ? '3px 3px 0 0 #22c55e' : 'none'),
+                order: isFarmerCrop ? 0 : 1,
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '1.2rem' }}>{c.emoji}</span>
-                  <span style={{ fontSize: '0.55rem', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>{c.name}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    <span style={{ fontSize: '0.55rem', fontWeight: '800', textTransform: 'uppercase', color: '#64748b' }}>{c.name}</span>
+                    {isFarmerCrop && <span style={{ fontSize: '0.5rem', fontWeight: '800', background: '#dcfce7', color: '#15803d', padding: '1px 4px', borderRadius: '3px' }}>🌱 My Crop</span>}
+                  </div>
                 </div>
                 <p style={{ margin: '0.25rem 0', fontFamily: 'var(--font-display)', fontWeight: '900', fontSize: '1.1rem', color: isBest ? '#15803d' : '#0f172a' }}>
                   ₹{price.toLocaleString()}
@@ -275,7 +319,45 @@ export default function MarketPrices() {
             </tr>
           </thead>
           <tbody>
-            {CROPS.map((crop) => {
+            {myCrops.length > 0 && (
+              <tr><td colSpan={orderedMarkets.length + 3} style={{ padding: '0.4rem 0.75rem', fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#15803d', background: '#f0fdf4', borderBottom: '1px solid #86efac' }}>🌱 Your Crops</td></tr>
+            )}
+            {myCrops.map((crop) => {
+              const maxPrice = Math.max(...crop.prices)
+              const minPrice = Math.min(...crop.prices)
+              const rec = recommendConfig[crop.recommend]
+              return (
+                <tr
+                  key={crop.name}
+                  className={`mp-tr ${activeCrop === crop.name ? 'active' : ''}`}
+                  onClick={() => setActiveCrop(activeCrop === crop.name ? null : crop.name)}
+                  style={{ background: 'rgba(34,197,94,0.04)' }}
+                >
+                  <td className="mp-td mp-td-name">
+                    <span className="mp-crop-emoji">{crop.emoji}</span>
+                    <span className="mp-crop-name">{crop.name}</span>
+                    <span style={{ marginLeft: '0.3rem', fontSize: '0.55rem', fontWeight: '800', background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: '3px' }}>MY CROP</span>
+                  </td>
+                  {orderedMarkets.map((m, index) => {
+                    const price = crop.prices[m.idx]
+                    const isBest = price === maxPrice
+                    const isWorst = price === minPrice
+                    return (
+                      <td key={m.name} className={`mp-td mp-price-cell ${isBest ? 'best' : isWorst ? 'worst' : ''}`} style={{ background: index === 0 ? 'rgba(34, 197, 94, 0.05)' : 'transparent' }}>
+                        <span>₹{price.toLocaleString()}</span>
+                        {isBest && <span className="mp-best-dot" title="Best Price" />}
+                      </td>
+                    )
+                  })}
+                  <td className="mp-td"><span className={`mp-trend ${crop.trendUp ? 'up' : 'down'}`}>{crop.trendUp ? '▲' : '▼'} {crop.trend}</span></td>
+                  <td className="mp-td"><span className="mp-signal" style={{ background: rec.bg, color: rec.color }}>{rec.icon} {rec.label}</span></td>
+                </tr>
+              )
+            })}
+            {otherCrops.length > 0 && (
+              <tr><td colSpan={orderedMarkets.length + 3} style={{ padding: '0.4rem 0.75rem', fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>📊 Other Crops</td></tr>
+            )}
+            {otherCrops.map((crop) => {
               const maxPrice = Math.max(...crop.prices)
               const minPrice = Math.min(...crop.prices)
               const rec = recommendConfig[crop.recommend]
@@ -407,14 +489,20 @@ export default function MarketPrices() {
         🤖 AI Sell Timing Recommendations
       </div>
       <div className="mp-timing-grid">
-        {CROPS.map(crop => {
+        {orderedCrops.map(crop => {
+          const isFarmerCrop = farmerCropNames.includes(crop.name.toLowerCase())
           const rec = recommendConfig[crop.recommend]
           return (
-            <div key={crop.name} className="mp-timing-card" onClick={() => setActiveCrop(crop.name)}>
+            <div key={crop.name} className="mp-timing-card" onClick={() => setActiveCrop(crop.name)}
+              style={isFarmerCrop ? { border: '2px solid #86efac', boxShadow: '3px 3px 0 0 #86efac' } : {}}
+            >
               <div className="mp-timing-top">
                 <span className="mp-timing-emoji">{crop.emoji}</span>
                 <div>
-                  <h4 className="mp-timing-name">{crop.name}</h4>
+                  <h4 className="mp-timing-name">
+                    {crop.name}
+                    {isFarmerCrop && <span style={{ marginLeft: '0.35rem', fontSize: '0.5rem', fontWeight: '800', background: '#dcfce7', color: '#15803d', padding: '1px 5px', borderRadius: '3px', verticalAlign: 'middle' }}>MY CROP</span>}
+                  </h4>
                   <p className="mp-timing-price">Best: ₹{Math.max(...crop.prices).toLocaleString()}/qtl</p>
                 </div>
                 <span className="mp-timing-signal" style={{ background: rec.bg, color: rec.color }}>

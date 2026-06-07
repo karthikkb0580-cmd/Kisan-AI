@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
 from dotenv import load_dotenv
 import httpx
+import numpy as np
 
 import database
 
@@ -401,6 +402,25 @@ class PasswordResetConfirm(BaseModel):
     code: str
     new_password: str
 
+class MarketItem(BaseModel):
+    id: str | int
+    name: str
+    address: str
+    lat: float
+    lng: float
+    type: str
+
+class AIAnalyzeMarketsRequest(BaseModel):
+    markets: List[MarketItem]
+    crop_name: str
+    language: str = "en"
+
+class CropPriceTrendsRequest(BaseModel):
+    crop_name: str
+    market_name: str = "Local APMC Mandi"
+    days_history: int = 30
+    forecast_days: int = 14
+
 # ── Root ──────────────────────────────────────────────────────────────────────
 @app.get("/")
 def root():
@@ -764,15 +784,68 @@ async def ai_diagnose(
     authorization: Optional[str] = Header(None),
 ):
     """3-stage plant disease analyser:
-    Stage 1 — HuggingFace PlantVillage MobileNetV2 (free ML model, 38 disease classes)
-    Stage 2 — Gemini AI generates detailed treatment plan for the ML-detected disease
+    Stage 1 — Gemini Vision AI (full image analysis — most accurate)
+    Stage 2 — HuggingFace PlantVillage MobileNetV2 (free ML model, 38 disease classes)
     Stage 3 — Smart mock fallback if both stages are unavailable
     """
     image_bytes  = await image.read()
     content_type = image.content_type or "image/jpeg"
 
-    # ── STAGE 1: HuggingFace PlantVillage MobileNetV2 ML Model ───────────────
-    print("[Diagnose] Stage 1: Running PlantVillage MobileNetV2 classifier...")
+    # ── STAGE 1: Gemini Vision AI (primary — most accurate full image analysis) ─
+    print("[Diagnose] Stage 1: Gemini Vision AI full image analysis...")
+    if _gemini_client is not None:
+        try:
+            from google.genai import types as _gtypes
+            hint   = f" Farmer reports the crop as: {crop_name}." if crop_name else ""
+            prompt = _GEMINI_PROMPT + hint
+            models_to_try = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]
+            response = None
+            last_err = None
+            for model_name in models_to_try:
+                try:
+                    print(f"[Gemini] Attempting diagnosis with model: {model_name}...")
+                    response = _gemini_client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            _gtypes.Part.from_bytes(data=image_bytes, mime_type=content_type),
+                            prompt,
+                        ],
+                    )
+                    print(f"[Gemini] Success with model: {model_name}!")
+                    break
+                except Exception as exc:
+                    last_err = exc
+                    err_str = str(exc)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        print(f"[Gemini] Model {model_name} rate-limited (429) — trying next model...")
+                        await asyncio.sleep(1)
+                    else:
+                        print(f"[Gemini] Model {model_name} failed: {type(exc).__name__}: {err_str[:120]}")
+
+            if response is not None:
+                raw = response.text.strip()
+                raw = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
+                raw = re.sub(r'^```\s*',     '', raw)
+                raw = re.sub(r'\s*```$',     '', raw)
+                result = json.loads(raw)
+                for t in result.get("treatments", []):
+                    if t.get("id") == "t1":
+                        t.setdefault("color", "#15803d"); t.setdefault("bg", "#f0fdf4"); t.setdefault("border", "#22c55e")
+                    elif t.get("id") == "t2":
+                        t.setdefault("color", "#854d0e"); t.setdefault("bg", "#fef9c3"); t.setdefault("border", "#eab308")
+                result["modelSource"] = "Gemini Vision AI"
+                result["timestamp"]   = datetime.utcnow().isoformat()
+                result["location"]    = location or "Unknown"
+                print(f"[Diagnose] Gemini Vision success: {result.get('disease')} @ {result.get('confidence')}")
+                return result
+
+        except json.JSONDecodeError as je:
+            print(f"[Diagnose] Gemini JSON parse error: {je}")
+        except Exception as exc:
+            print(f"[Diagnose] Gemini Stage 1 failed: {type(exc).__name__}: {str(exc)[:200]}")
+
+    # ── STAGE 2: HuggingFace PlantVillage MobileNetV2 ML Model ───────────────
+    print("[Diagnose] Stage 2: Running PlantVillage MobileNetV2 classifier (HuggingFace)...")
     hf_result = await classify_plant_disease_hf(image_bytes)
 
     if hf_result:
@@ -780,9 +853,9 @@ async def ai_diagnose(
         disease    = hf_result["disease"]
         ml_conf    = hf_result["confidence"]
         is_healthy = hf_result["isHealthy"]
-        print(f"[Diagnose] ML Model -> {disease} ({plant_type}) @ {ml_conf}")
+        print(f"[Diagnose] HF ML Model -> {disease} ({plant_type}) @ {ml_conf}")
 
-        # Healthy plant: return immediately without needing treatment details
+        # Healthy plant: return immediately
         if is_healthy:
             return {
                 "plantType":      plant_type,
@@ -800,27 +873,30 @@ async def ai_diagnose(
                 "location":       location or "Unknown",
             }
 
-        # ── STAGE 2: Gemini generates treatment details for ML-detected disease
+        # Try Gemini for treatment details on HF-detected disease
         if _gemini_client is not None:
-            print("[Diagnose] Stage 2: Gemini generating treatment plan...")
+            print("[Diagnose] Stage 2b: Gemini generating treatment plan for HF detection...")
             try:
                 prompt = _GEMINI_TREATMENT_PROMPT.format(
                     plant_type=plant_type,
                     disease_name=disease,
                 )
-                models_to_try = [GEMINI_MODEL, "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
-                response = None
-                for model_name in models_to_try:
+                models_to_try2 = [GEMINI_MODEL, "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+                response2 = None
+                for model_name in models_to_try2:
                     try:
-                        response = _gemini_client.models.generate_content(
+                        response2 = _gemini_client.models.generate_content(
                             model=model_name, contents=[prompt]
                         )
                         break
                     except Exception as _me:
-                        print(f"[Gemini] Model {model_name} failed: {type(_me).__name__}")
+                        if "429" in str(_me) or "RESOURCE_EXHAUSTED" in str(_me):
+                            print(f"[Gemini] {model_name} rate-limited, trying next...")
+                        else:
+                            print(f"[Gemini] {model_name} failed: {type(_me).__name__}")
 
-                if response:
-                    raw = response.text.strip()
+                if response2:
+                    raw = response2.text.strip()
                     raw = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
                     raw = re.sub(r'^```\s*', '', raw)
                     raw = re.sub(r'\s*```$', '', raw)
@@ -836,13 +912,12 @@ async def ai_diagnose(
                             t.setdefault("color", "#854d0e"); t.setdefault("bg", "#fef9c3"); t.setdefault("border", "#eab308")
                     result["timestamp"] = datetime.utcnow().isoformat()
                     result["location"]  = location or "Unknown"
-                    print(f"[Diagnose] HF+Gemini pipeline success: {disease}")
                     return result
 
             except Exception as exc:
                 print(f"[Diagnose] Gemini treatment step failed: {exc}")
 
-        # Gemini unavailable: find matching mock treatment for the ML-detected disease
+        # Gemini unavailable — use matching mock treatment
         mock_match = next(
             (m for m in _MOCK_RESULTS
              if plant_type.lower() in m["plantType"].lower()
@@ -859,53 +934,6 @@ async def ai_diagnose(
             result["location"]    = location or "Unknown"
             return result
 
-    # ── STAGE 3 (Fallback): Gemini Vision full image analysis ────────────────
-    print("[Diagnose] Stage 3: HF model unavailable - trying Gemini Vision...")
-    if _gemini_client is not None:
-        try:
-            from google.genai import types as _gtypes
-            hint   = f" Farmer reports the crop as: {crop_name}." if crop_name else ""
-            prompt = _GEMINI_PROMPT + hint
-            models_to_try = [GEMINI_MODEL, "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"]
-            response = None
-            last_err = None
-            for model_name in models_to_try:
-                try:
-                    print(f"[Gemini] Attempting diagnosis with model: {model_name}...")
-                    response = _gemini_client.models.generate_content(
-                        model=model_name,
-                        contents=[
-                            _gtypes.Part.from_bytes(data=image_bytes, mime_type=content_type),
-                            prompt,
-                        ],
-                    )
-                    print(f"[Gemini] Success with model: {model_name}!")
-                    break
-                except Exception as exc:
-                    last_err = exc
-                    print(f"[Gemini] Model {model_name} failed: {type(exc).__name__}")
-            if response is None:
-                raise last_err
-            raw    = response.text.strip()
-            raw    = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
-            raw    = re.sub(r'^```\s*', '',  raw)
-            raw    = re.sub(r'\s*```$', '',  raw)
-            result = json.loads(raw)
-            for t in result.get("treatments", []):
-                if t.get("id") == "t1":
-                    t.setdefault("color", "#15803d"); t.setdefault("bg", "#f0fdf4"); t.setdefault("border", "#22c55e")
-                elif t.get("id") == "t2":
-                    t.setdefault("color", "#854d0e"); t.setdefault("bg", "#fef9c3"); t.setdefault("border", "#eab308")
-            result["modelSource"] = "Gemini Vision AI"
-            result["timestamp"]   = datetime.utcnow().isoformat()
-            result["location"]    = location or "Unknown"
-            print(f"[Gemini] Diagnosed: {result.get('disease')} - confidence {result.get('confidence')}")
-            return result
-        except json.JSONDecodeError as je:
-            print(f"[Gemini] JSON parse error: {je}")
-        except Exception as exc:
-            print(f"[Gemini] Vision fallback failed: {exc}")
-
     # ── FINAL MOCK FALLBACK ────────────────────────────────────────────────────
     crop_lower = (crop_name or "").lower()
     mock = next(
@@ -917,8 +945,8 @@ async def ai_diagnose(
     result["location"]    = location or "Unknown"
     result["modelSource"] = "Demo Data"
     result["_note"] = (
-        "DEMO MODE: PlantVillage ML model and Gemini are both unavailable. "
-        "Add GEMINI_API_KEY to server_python/.env for real AI diagnosis."
+        "DEMO MODE: Gemini Vision and HuggingFace ML are both unavailable. "
+        "Check GEMINI_API_KEY in server_python/.env and network connectivity."
     )
     print("[Diagnose] Returning MOCK data - all AI stages failed.")
     return result
@@ -944,6 +972,61 @@ def ai_market_price(req: AIMarketRequest):
         "trend":         p["trend"],
         "timestamp":     datetime.utcnow().isoformat(),
     }
+
+# ── AI: Analyze Markets ───────────────────────────────────────────────────────
+_MARKET_ANALYSIS_PROMPT = """
+You are an AI agricultural market analyst.
+The user is growing: {crop_name}.
+Here is a list of nearby physical markets/mandis found via maps:
+{markets_json}
+
+Your task: Analyze these markets based on their names and types, and select the best ones for selling '{crop_name}'. 
+Return ONLY a raw JSON array of the recommended markets. Include all original fields (id, name, address, lat, lng, type) and add a "reasoning" string field explaining why it is a good fit for {crop_name}.
+Keep the reasoning concise and practical.
+
+Rules:
+- Return raw JSON array only, no markdown formatting.
+- If the list is empty, return an empty array [].
+"""
+
+@app.post("/api/v1/ai/analyze-markets")
+def ai_analyze_markets(req: AIAnalyzeMarketsRequest):
+    if not req.markets:
+        return []
+
+    # If Gemini is available
+    if _gemini_client is not None:
+        try:
+            markets_dict = [m.model_dump() for m in req.markets]
+            prompt = _MARKET_ANALYSIS_PROMPT.format(
+                crop_name=req.crop_name,
+                markets_json=json.dumps(markets_dict, indent=2)
+            )
+            models_to_try = [GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash-lite"]
+            for model_name in models_to_try:
+                try:
+                    response = _gemini_client.models.generate_content(
+                        model=model_name, contents=[prompt]
+                    )
+                    raw = response.text.strip()
+                    raw = re.sub(r'^```json\s*', '', raw, flags=re.IGNORECASE)
+                    raw = re.sub(r'^```\s*', '', raw)
+                    raw = re.sub(r'\s*```$', '', raw)
+                    result = json.loads(raw)
+                    return result
+                except Exception as _e:
+                    print(f"[Gemini Markets] Model {model_name} failed: {_e}")
+        except Exception as exc:
+            print(f"[Gemini Markets] Analysis failed: {exc}")
+
+    # Fallback if Gemini fails or is not available
+    # Just return top 3 with a generic reasoning
+    results = []
+    for m in req.markets[:3]:
+        d = m.model_dump()
+        d["reasoning"] = f"Suitable general marketplace for selling {req.crop_name} locally."
+        results.append(d)
+    return results
 
 # ── AI: Weather advisory ──────────────────────────────────────────────────────
 @app.post("/api/v1/ai/weather-advisory")

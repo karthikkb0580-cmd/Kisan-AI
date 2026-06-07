@@ -14,6 +14,10 @@ export const useFarmvestStore = create((set) => ({
   // User Profile (initially loaded from localStorage)
   user: JSON.parse(localStorage.getItem('krishi_user')) || null,
 
+  // Farmer's Primary Crops
+  farmerCrops: ['Wheat', 'Mustard'],
+  setFarmerCrops: (crops) => set({ farmerCrops: crops }),
+
   // Carousel filters
   activeFilter: 'all',
 
