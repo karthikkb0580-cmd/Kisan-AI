@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AIAPI } from '../../services/api'
@@ -66,6 +66,22 @@ function MapController({ center, zoom }) {
   return null
 }
 
+// Map click and move handler
+function MapEvents({ onMapClick, onMapMove }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng)
+    },
+    dragend(e) {
+      onMapMove(e.target.getCenter())
+    },
+    zoomend(e) {
+      onMapMove(e.target.getCenter())
+    }
+  })
+  return null
+}
+
 export default function NearbyMarkets() {
   const { farmerCrops } = useFarmvestStore()
   const [phase, setPhase] = useState('idle') // idle | locating | loading | ready | error
@@ -84,6 +100,14 @@ export default function NearbyMarkets() {
   const otherCrops = ALL_KNOWN_CROPS.filter(c => !farmerCrops.includes(c))
 
   const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
+
+  const [mapDraggedCenter, setMapDraggedCenter] = useState(null)
+
+  const showSearchHere = useMemo(() => {
+    if (!mapDraggedCenter || !userPos) return false
+    const dist = haversine(userPos.lat, userPos.lng, mapDraggedCenter.lat, mapDraggedCenter.lng)
+    return dist > 1.0 // show button if center moved by more than 1km
+  }, [mapDraggedCenter, userPos])
 
   // Fetch real markets using Overpass API
   const fetchOverpassMarkets = async (lat, lng) => {
@@ -169,6 +193,7 @@ export default function NearbyMarkets() {
     setRouteInfo(null)
     setRouteInstructions([])
     setIsNavigating(false)
+    setMapDraggedCenter(null)
 
     try {
       let list = []
@@ -215,6 +240,7 @@ export default function NearbyMarkets() {
   const getLocation = useCallback(() => {
     setPhase('locating')
     setError('')
+    setMapDraggedCenter(null)
     if (!navigator.geolocation) {
       setUserPos(DEFAULT_POS)
       loadData(DEFAULT_POS, cropGrown)
@@ -246,6 +272,16 @@ export default function NearbyMarkets() {
       getLocation()
     }
   }
+
+  const handleMapClick = useCallback((latlng) => {
+    const newPos = { lat: latlng.lat, lng: latlng.lng }
+    setUserPos(newPos)
+    loadData(newPos, cropGrown)
+  }, [loadData, cropGrown])
+
+  const handleMapMove = useCallback((center) => {
+    setMapDraggedCenter({ lat: center.lat, lng: center.lng })
+  }, [])
 
   // Get route coordinates when market selected
   useEffect(() => {
@@ -325,7 +361,7 @@ export default function NearbyMarkets() {
       <div className="nm-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div>
           <h1 className="db-page-title">🛒 Nearby Markets</h1>
-          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — analyzed by AI.</p>
+          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — Drag red pin or click anywhere to search!</p>
         </div>
         
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -379,6 +415,38 @@ export default function NearbyMarkets() {
         {/* Left Column: Interactive Map */}
         <div className="nm-map-side">
           <div className="nm-map-wrap" style={{ height: '420px', minHeight: '420px', position: 'relative' }}>
+            {showSearchHere && (
+              <button
+                onClick={() => {
+                  if (mapDraggedCenter) {
+                    setUserPos(mapDraggedCenter)
+                    loadData(mapDraggedCenter, cropGrown)
+                  }
+                }}
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: '#22c55e',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.6rem 1.2rem',
+                  borderRadius: '30px',
+                  fontWeight: 'bold',
+                  fontSize: '0.85rem',
+                  boxShadow: '0 4px 15px rgba(34, 197, 94, 0.4)',
+                  cursor: 'pointer',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                🔍 Search This Area
+              </button>
+            )}
             <MapContainer
               center={mapCenter}
               zoom={11}
@@ -386,6 +454,7 @@ export default function NearbyMarkets() {
               zoomControl={true}
             >
               <MapController center={selectedMarket ? [selectedMarket.lat, selectedMarket.lng] : mapCenter} />
+              <MapEvents onMapClick={handleMapClick} onMapMove={handleMapMove} />
               
               <TileLayer
                 attribution='&copy; OpenStreetMap contributors'
@@ -394,9 +463,24 @@ export default function NearbyMarkets() {
 
               {/* User Position Marker */}
               {userPos && (
-                <Marker position={[userPos.lat, userPos.lng]} icon={userIcon}>
+                <Marker 
+                  position={[userPos.lat, userPos.lng]} 
+                  icon={userIcon}
+                  draggable={true}
+                  eventHandlers={{
+                    dragend: (e) => {
+                      const marker = e.target
+                      const position = marker.getLatLng()
+                      const newPos = { lat: position.lat, lng: position.lng }
+                      setUserPos(newPos)
+                      loadData(newPos, cropGrown)
+                    }
+                  }}
+                >
                   <Popup>
-                    <div style={{ textAlign: 'center', fontWeight: 'bold' }}>📍 Your Location</div>
+                    <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                      📍 Drag pin or click map<br/>to search new area!
+                    </div>
                   </Popup>
                 </Marker>
               )}
