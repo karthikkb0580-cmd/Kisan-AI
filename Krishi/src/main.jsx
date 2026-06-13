@@ -1,10 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import './index.css'
-import './scanner.css'
-import './scanner2.css'
-import './themes.css'
+import './styles/index.css'
+import './styles/scanner.css'
+import './styles/scanner2.css'
+import './styles/themes.css'
 
 const container = document.getElementById('root');
 if (container) {

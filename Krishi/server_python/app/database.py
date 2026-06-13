@@ -15,7 +15,8 @@ if IS_POSTGRES:
 else:
     print("[DB] Using local SQLite database connection.")
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "krishi.db")
+# DB file should remain in the root directory server_python
+DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "krishi.db")
 
 def get_db_connection():
     if IS_POSTGRES:
