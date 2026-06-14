@@ -36,6 +36,19 @@ if not database.get_user_by_email("demo@krishi.ai"):
         database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
         print("[DB] Demo user seeded: demo@krishi.ai / password")
 
+if not database.get_user_by_email("opkarthik2005@gmail.com"):
+    user_pw_hash = hash_password("password")
+    u_id = database.create_user(
+        full_name="Karthik",
+        email="opkarthik2005@gmail.com",
+        phone="+919876543211",
+        password_hash=user_pw_hash
+    )
+    if u_id:
+        database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
+        print("[DB] Seeded user: opkarthik2005@gmail.com / password")
+
+
 @router.post("/register")
 async def register(req: RegisterRequest):
     if not req.email and not req.phone:

@@ -1,10 +1,17 @@
 import { useEffect } from 'react'
+import { useFarmvestStore } from '../../store/useFarmvestStore'
+import { translations } from '../../translations'
 
 /**
  * FeaturesSection — Compact stats/info section below the 3D scroll hero.
  * All video content has been moved into the immersive hero scroll experience.
  */
 export default function FeaturesSection() {
+  const { language } = useFarmvestStore()
+
+  const t = (key, fallback) =>
+    translations[language]?.[key] || translations['en']?.[key] || fallback || key
+
   // Feature-row slide-in
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -19,35 +26,35 @@ export default function FeaturesSection() {
   }, [])
 
   const stats = [
-    { value: '98%', label: 'Crop Accuracy', icon: '🛰️', color: '#22C55E' },
-    { value: '45K+', label: 'Active Farmers', icon: '🌾', color: '#3B82F6' },
-    { value: '2.1M', label: 'Acres Monitored', icon: '📡', color: '#F59E0B' },
-    { value: '35%', label: 'Water Saved', icon: '💧', color: '#06B6D4' },
+    { value: '98%', label: t('statCropAccuracy', 'Crop Accuracy'), icon: '🛰️', color: '#22C55E' },
+    { value: '45K+', label: t('statActiveFarmers', 'Active Farmers'), icon: '🌾', color: '#3B82F6' },
+    { value: '2.1M', label: t('statAcresMonitored', 'Acres Monitored'), icon: '📡', color: '#F59E0B' },
+    { value: '35%', label: t('statWaterSaved', 'Water Saved'), icon: '💧', color: '#06B6D4' },
   ]
 
   const capabilities = [
     {
       icon: '🔬',
-      title: 'AI Crop Analysis',
-      desc: 'PlantVillage MobileNetV2 ML model identifies 38 disease classes across 14 crops — leaves, fruits, and vegetables — with Gemini AI providing detailed treatment plans.',
+      title: t('capAiCropTitle', 'AI Crop Analysis'),
+      desc: t('capAiCropDesc', 'PlantVillage MobileNetV2 ML model identifies 38 disease classes across 14 crops — leaves, fruits, and vegetables — with Gemini AI providing detailed treatment plans.'),
       gradient: 'linear-gradient(135deg, #22C55E, #059669)'
     },
     {
       icon: '🌐',
-      title: 'Satellite Integration',
-      desc: 'Real-time orbital data streams deliver sub-meter resolution imagery for monitoring thousands of hectares simultaneously.',
+      title: t('capSatelliteTitle', 'Satellite Integration'),
+      desc: t('capSatelliteDesc', 'Real-time orbital data streams deliver sub-meter resolution imagery for monitoring thousands of hectares simultaneously.'),
       gradient: 'linear-gradient(135deg, #3B82F6, #1D4ED8)'
     },
     {
       icon: '⚡',
-      title: 'Smart Irrigation',
-      desc: 'IoT-connected drip systems respond to moisture sensors in real time, reducing water waste by up to 40%.',
+      title: t('capIrrigationTitle', 'Smart Irrigation'),
+      desc: t('capIrrigationDesc', 'IoT-connected drip systems respond to moisture sensors in real time, reducing water waste by up to 40%.'),
       gradient: 'linear-gradient(135deg, #06B6D4, #0891B2)'
     },
     {
       icon: '🔋',
-      title: 'Green Energy Grid',
-      desc: 'Solar-tracking panels and wind turbines power all field operations with zero-emission renewable energy.',
+      title: t('capEnergyTitle', 'Green Energy Grid'),
+      desc: t('capEnergyDesc', 'Solar-tracking panels and wind turbines power all field operations with zero-emission renewable energy.'),
       gradient: 'linear-gradient(135deg, #F59E0B, #D97706)'
     },
   ]
@@ -56,11 +63,10 @@ export default function FeaturesSection() {
     <section className="features-section-v2" id="features">
       {/* Section header */}
       <div className="features-header scroll-reveal">
-        <span className="features-eyebrow">Powered by Intelligence</span>
-        <h2 className="features-heading">AgriTech Intel Systems</h2>
+        <span className="features-eyebrow">{t('poweredByIntelligence', 'Powered by Intelligence')}</span>
+        <h2 className="features-heading">{t('agritechTitle', 'AgriTech Intel Systems')}</h2>
         <p className="features-subheading">
-          Next-generation precision farming infrastructure combining orbital
-          telemetry, AI crop analysis, and renewable energy microgrids.
+          {t('agritechSub', 'Next-generation precision farming infrastructure combining orbital telemetry, AI crop analysis, and renewable energy microgrids.')}
         </p>
       </div>
 

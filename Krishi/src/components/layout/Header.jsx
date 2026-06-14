@@ -66,8 +66,27 @@ export default function Header() {
   const languages = [
     { code: 'en', name: 'English', flag: '🇬🇧' },
     { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
+    { code: 'bn', name: 'বাংলা', flag: '🇮🇳' },
+    { code: 'te', name: 'తెలుగు', flag: '🇮🇳' },
+    { code: 'mr', name: 'मराठी', flag: '🇮🇳' },
+    { code: 'ta', name: 'தமிழ்', flag: '🇮🇳' },
+    { code: 'gu', name: 'ગુજરાતી', flag: '🇮🇳' },
+    { code: 'kn', name: 'ಕನ್ನಡ', flag: '🇮🇳' },
+    { code: 'ml', name: 'മലയാളം', flag: '🇮🇳' },
+    { code: 'or', name: 'ଓଡ଼ିଆ', flag: '🇮🇳' },
     { code: 'pa', name: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
-    { code: 'te', name: 'తెలుగు', flag: '🇮🇳' }
+    { code: 'as', name: 'অসমীয়া', flag: '🇮🇳' },
+    { code: 'mai', name: 'मैथिली', flag: '🇮🇳' },
+    { code: 'sa', name: 'संस्कृतम्', flag: '🇮🇳' },
+    { code: 'ne', name: 'नेपाली', flag: '🇮🇳' },
+    { code: 'sd', name: 'سنڌي', flag: '🇮🇳' },
+    { code: 'kok', name: 'कोंकणी', flag: '🇮🇳' },
+    { code: 'doi', name: 'डोगरी', flag: '🇮🇳' },
+    { code: 'mni', name: 'মৈতৈলোন্', flag: '🇮🇳' },
+    { code: 'sat', name: 'ᱥᱟᱱᱛᱟᱲᱤ', flag: '🇮🇳' },
+    { code: 'ks', name: 'كٲشُر', flag: '🇮🇳' },
+    { code: 'bo', name: 'བོད་སྐད', flag: '🇮🇳' },
+    { code: 'ur', name: 'اردو', flag: '🇮🇳' },
   ]
 
   const currentLang = languages.find(l => l.code === language) || languages[0]

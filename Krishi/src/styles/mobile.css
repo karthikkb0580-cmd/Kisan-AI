@@ -1,0 +1,650 @@
+/* ═══════════════════════════════════════════════════════════════════
+   KRISHI AI — PROFESSIONAL MOBILE CSS OVERHAUL
+   Covers: contrast fixes, layout stacking, animations, touch feedback
+   Scoped entirely to ≤768px (dashboard) and ≤1023px (drawer/topbar)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── 1. MARKET PRICES — crop input row: stack on mobile ─────────── */
+@media (max-width: 768px) {
+  .nm-header-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  /* Stack the "Your crops" input + Save button vertically */
+  .nm-header-row > div:last-child,
+  .nm-header-row > div:last-child > div {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+  .nm-header-row input[type="text"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.85rem !important;
+  }
+  .nm-header-row button {
+    width: 100% !important;
+    padding: 0.6rem 1rem !important;
+    font-size: 0.82rem !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* ── 2. MARKET PRICES — nearest market crop cards: 1 col ────────── */
+@media (max-width: 600px) {
+  .mp-nearest-prices-grid,
+  [class*="mp-nearest"] .mp-nearest-prices-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.6rem !important;
+  }
+  .mp-nearest-item {
+    padding: 0.6rem !important;
+  }
+  /* Fix dark text on light card for price values */
+  .mp-nearest-item p[style*="color:#0f172a"],
+  .mp-nearest-item p {
+    color: #0f172a !important;
+  }
+  .dark-theme .mp-nearest-item p {
+    color: #f1f5f9 !important;
+  }
+  .dark-theme .mp-nearest-item {
+    background: #0e1728 !important;
+    border-color: #1e293b !important;
+  }
+}
+
+/* ── 3. NEAREST MARKET PRICES — ensure readability dark mode ────── */
+.dark-theme .mp-nearest-item {
+  background: #111b2d !important;
+  border-color: #22c55e !important;
+}
+.dark-theme .mp-nearest-item p {
+  color: #f1f5f9 !important;
+}
+.dark-theme .mp-nearest-item span[style*="color:#64748b"],
+.dark-theme .mp-nearest-item span[style*="color: #64748b"] {
+  color: #94a3b8 !important;
+}
+
+/* ── 4. TREATMENT ITEMS — stack actions below text on mobile ─────── */
+@media (max-width: 768px) {
+  .dash-treat-item {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.6rem !important;
+    padding: 0.85rem !important;
+  }
+  .dash-treat-body {
+    width: 100% !important;
+  }
+  .dash-treat-btns {
+    width: 100% !important;
+    justify-content: flex-start !important;
+    gap: 0.4rem !important;
+    flex-wrap: wrap !important;
+  }
+  .dash-treat-btn {
+    flex: 1 !important;
+    min-width: 0 !important;
+    height: 36px !important;
+    font-size: 0.85rem !important;
+  }
+  .dash-treat-disease {
+    font-size: 0.82rem !important;
+    line-height: 1.35 !important;
+  }
+  .dash-treat-action {
+    font-size: 0.72rem !important;
+    line-height: 1.4 !important;
+  }
+  .dash-treat-dosage {
+    font-size: 0.68rem !important;
+    margin-top: 0.2rem !important;
+  }
+}
+
+/* ── 5. SETTINGS — profile detail rows stack vertically ─────────── */
+@media (max-width: 768px) {
+  /* Settings key-value rows: stack key above value */
+  .db-info-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.2rem !important;
+    padding: 0.5rem 0 !important;
+  }
+  .db-info-row > span:first-child {
+    font-size: 0.68rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: #94a3b8 !important;
+  }
+  .db-info-row > span:last-child,
+  .db-info-row > strong {
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    word-break: break-all !important;
+  }
+}
+
+/* ── 6. TOPBAR — glassmorphic professional look ─────────────────── */
+@media (max-width: 1023px) {
+  .db-topbar {
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+    box-shadow: 0 1px 20px rgba(15, 23, 42, 0.08) !important;
+    padding: 0 1rem !important;
+    height: 60px !important;
+  }
+  .dark-theme .db-topbar {
+    background: rgba(11, 19, 43, 0.92) !important;
+    border-bottom-color: rgba(30, 41, 59, 0.9) !important;
+    box-shadow: 0 1px 20px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  /* Topbar title */
+  .db-topbar-title {
+    font-size: 0.95rem !important;
+    font-weight: 900 !important;
+    letter-spacing: -0.02em !important;
+  }
+
+  /* Hamburger — smooth morphing animation */
+  .db-hamburger {
+    padding: 8px !important;
+    border-radius: 10px !important;
+    transition: background 0.2s ease !important;
+  }
+  .db-hamburger:hover {
+    background: rgba(34, 197, 94, 0.1) !important;
+  }
+  .db-hamburger:active {
+    background: rgba(34, 197, 94, 0.2) !important;
+    transform: scale(0.92) !important;
+  }
+  .db-hamburger span {
+    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+}
+
+/* ── 7. SIDEBAR DRAWER — premium spring drawer ──────────────────── */
+@media (max-width: 1023px) {
+  .db-sidebar {
+    width: 290px !important;
+    border-radius: 0 24px 24px 0 !important;
+    border-right: 2px solid rgba(34, 197, 94, 0.25) !important;
+    background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%) !important;
+    box-shadow: 8px 0 40px rgba(15, 23, 42, 0.15), 2px 0 8px rgba(15, 23, 42, 0.05) !important;
+  }
+  .dark-theme .db-sidebar {
+    background: linear-gradient(160deg, #0b132b 0%, #0e1728 100%) !important;
+    border-right-color: rgba(34, 197, 94, 0.3) !important;
+    box-shadow: 8px 0 40px rgba(0, 0, 0, 0.5) !important;
+  }
+
+  /* User card inside drawer */
+  .db-user-card {
+    border-radius: 16px !important;
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7) !important;
+    border: 1.5px solid #86efac !important;
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.12) !important;
+  }
+  .dark-theme .db-user-card {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.04)) !important;
+    border-color: rgba(34, 197, 94, 0.25) !important;
+  }
+
+  /* Nav buttons — premium touch feel */
+  .db-nav-btn {
+    border-radius: 12px !important;
+    padding: 0.7rem 0.9rem !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.01em !important;
+    transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .db-nav-btn:hover {
+    background: rgba(34, 197, 94, 0.08) !important;
+    padding-left: 1.1rem !important;
+  }
+  .db-nav-btn.active {
+    background: linear-gradient(135deg, #22c55e, #16a34a) !important;
+    box-shadow: 0 4px 14px rgba(34, 197, 94, 0.35) !important;
+    transform: scale(1.01) !important;
+  }
+  .dark-theme .db-nav-btn:hover {
+    background: rgba(34, 197, 94, 0.1) !important;
+    color: #4ade80 !important;
+  }
+
+  /* Overlay */
+  .db-sidebar-overlay {
+    background: rgba(7, 17, 31, 0.5) !important;
+    backdrop-filter: blur(8px) !important;
+  }
+}
+
+/* ── 8. BOTTOM TAB BAR — premium pill design ────────────────────── */
+@media (max-width: 1023px) {
+  .db-mobile-bar {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: flex !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1px solid rgba(226, 232, 240, 0.8) !important;
+    box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08) !important;
+    padding: 0.3rem 0 env(safe-area-inset-bottom, 0) !important;
+    z-index: 50 !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    gap: 0 !important;
+  }
+  .db-mobile-bar::-webkit-scrollbar { display: none !important; }
+
+  .dark-theme .db-mobile-bar {
+    background: rgba(11, 19, 43, 0.95) !important;
+    border-top-color: rgba(30, 41, 59, 0.8) !important;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .db-mob-btn {
+    flex: 0 0 auto !important;
+    min-width: 60px !important;
+    padding: 0.45rem 0.5rem !important;
+    border-radius: 12px !important;
+    margin: 0 0.15rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0.2rem !important;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+  .db-mob-btn:active {
+    transform: scale(0.88) !important;
+    background: rgba(34, 197, 94, 0.1) !important;
+  }
+  .db-mob-btn.active {
+    background: rgba(34, 197, 94, 0.12) !important;
+  }
+  .dark-theme .db-mob-btn.active {
+    background: rgba(34, 197, 94, 0.15) !important;
+  }
+  .db-mob-btn.active::before {
+    content: '';
+    position: absolute !important;
+    top: 2px !important;
+    left: 25% !important;
+    right: 25% !important;
+    height: 3px !important;
+    background: #22c55e !important;
+    border-radius: 0 0 3px 3px !important;
+  }
+  .db-mob-icon {
+    font-size: 1.3rem !important;
+    line-height: 1 !important;
+    display: block !important;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+  .db-mob-btn.active .db-mob-icon {
+    transform: translateY(-2px) scale(1.15) !important;
+  }
+  .db-mob-label {
+    font-size: 0.52rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em !important;
+    white-space: nowrap !important;
+    color: #64748b !important;
+    line-height: 1 !important;
+  }
+  .db-mob-btn.active .db-mob-label {
+    color: #16a34a !important;
+  }
+  .dark-theme .db-mob-btn.active .db-mob-label {
+    color: #4ade80 !important;
+  }
+}
+
+/* ── 9. STAT CARDS — premium visual upgrade ─────────────────────── */
+@media (max-width: 768px) {
+  .db-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.65rem !important;
+  }
+  .db-stat-card {
+    border-radius: 16px !important;
+    padding: 1rem 0.85rem !important;
+    border: none !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07) !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+  .db-stat-card::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: -20px !important;
+    right: -20px !important;
+    width: 60px !important;
+    height: 60px !important;
+    border-radius: 50% !important;
+    background: rgba(255,255,255,0.25) !important;
+  }
+  .db-stat-value {
+    font-size: 1.25rem !important;
+  }
+  .db-stat-label {
+    font-size: 0.65rem !important;
+    line-height: 1.3 !important;
+  }
+}
+
+/* ── 10. SECTION PADDING — comfortable on mobile ────────────────── */
+@media (max-width: 768px) {
+  .db-main {
+    padding: 0 0.85rem 5rem !important;
+    padding-top: 72px !important;
+  }
+  .db-section {
+    gap: 0.9rem !important;
+    padding-top: 0.75rem !important;
+  }
+  .db-page-title {
+    font-size: 1.35rem !important;
+    letter-spacing: -0.03em !important;
+  }
+  .db-page-sub {
+    font-size: 0.78rem !important;
+    line-height: 1.5 !important;
+  }
+}
+
+/* ── 11. CARDS — consistent radius + shadow on mobile ───────────── */
+@media (max-width: 768px) {
+  .db-card {
+    border-radius: 18px !important;
+    padding: 1rem !important;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.06) !important;
+  }
+  .dark-theme .db-card {
+    box-shadow: 0 2px 16px rgba(0,0,0,0.35) !important;
+  }
+}
+
+/* ── 12. GOVERNMENT SCHEME TABS — wrap neatly on mobile ─────────── */
+@media (max-width: 768px) {
+  .gov-tier-tabs {
+    gap: 0.4rem !important;
+  }
+  .gov-tier-tab {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.72rem !important;
+    border-radius: 10px !important;
+  }
+  .gov-tier-tab-label {
+    font-size: 0.72rem !important;
+  }
+  .db-schemes-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
+  }
+}
+
+/* ── 13. TOPOMAP — env strip tighter on mobile ──────────────────── */
+@media (max-width: 600px) {
+  .topo-env-strip {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+  .topo-env-card {
+    padding: 0.6rem !important;
+    border-radius: 12px !important;
+  }
+  .topo-env-val {
+    font-size: 0.78rem !important;
+    font-weight: 800 !important;
+  }
+  .topo-env-label {
+    font-size: 0.55rem !important;
+  }
+}
+
+/* ── 14. FARM TRAINING — single column full-width ───────────────── */
+@media (max-width: 768px) {
+  .ft-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+  .ft-tabs {
+    gap: 0.4rem !important;
+    flex-wrap: wrap !important;
+  }
+  .ft-tab-btn {
+    flex: 1 !important;
+    min-width: 80px !important;
+    font-size: 0.72rem !important;
+    padding: 0.5rem 0.4rem !important;
+    border-radius: 10px !important;
+    text-align: center !important;
+  }
+  .ft-guide-card {
+    border-radius: 16px !important;
+  }
+}
+
+/* ── 15. MARKET PRICES TABLE — scrollable + better UX ───────────── */
+@media (max-width: 768px) {
+  .mp-table-wrap {
+    border-radius: 14px !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+  }
+  .mp-timing-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
+  }
+  .mp-timing-card {
+    border-radius: 16px !important;
+    padding: 1rem !important;
+  }
+  .mp-detail-card {
+    border-radius: 16px !important;
+    padding: 1rem !important;
+  }
+  .mp-detail-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.75rem !important;
+  }
+}
+
+/* ── 16. NEARBY MARKETS — full-width stacked cards ──────────────── */
+@media (max-width: 768px) {
+  .nm-side-by-side-container {
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+  .nm-list-side {
+    height: auto !important;
+    max-height: 420px !important;
+  }
+  .nm-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .nm-market-list-item {
+    border-radius: 16px !important;
+  }
+  .nm-item-prices {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* ── 17. LOCATION WIDGET — improve on small screens ─────────────── */
+@media (max-width: 600px) {
+  /* Location widget mode tabs */
+  [style*="display: flex"][style*="gap: 0.4rem"][style*="background: var(--bg3)"] {
+    flex-wrap: wrap !important;
+  }
+  /* Crop input row in Market Prices header */
+  [style*="minWidth: '180px'"] {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* ── 18. KEYFRAME — new mobile-only entrance effects ────────────── */
+@keyframes mob-spring-up {
+  0%   { opacity: 0; transform: translateY(24px) scale(0.96); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes mob-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(34,197,94,0.15); }
+}
+
+@keyframes mob-slide-right {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── 19. PREMIUM INTERACTIVE TOUCH STATES ────────────────────────── */
+@media (max-width: 1023px) {
+  /* All clickable cards spring on tap */
+  .db-stat-card,
+  .db-scheme-card,
+  .mp-timing-card,
+  .nm-market-list-item,
+  .ft-guide-card,
+  .topo-env-card {
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
+    user-select: none !important;
+    cursor: pointer;
+  }
+
+  /* Scheme cards get a left-border highlight on active */
+  .db-scheme-card:active {
+    border-color: #22c55e !important;
+    transform: scale(0.97) !important;
+  }
+  .dark-theme .db-scheme-card:active {
+    border-color: #4ade80 !important;
+  }
+
+  /* Treatments panel ripple */
+  .dash-treat-btn {
+    position: relative !important;
+    overflow: hidden !important;
+    transition: all 0.18s cubic-bezier(0.16,1,0.3,1) !important;
+  }
+  .dash-treat-btn:active {
+    transform: scale(0.92) !important;
+  }
+  .dash-treat-btn--done:active  { background: #dcfce7 !important; border-color: #22c55e !important; }
+  .dash-treat-btn--skip:active  { background: #fee2e2 !important; border-color: #ef4444 !important; }
+
+  /* Alerts slide in from left on mobile */
+  .db-alert {
+    animation: mob-slide-right 0.3s cubic-bezier(0.16,1,0.3,1) both !important;
+    border-radius: 12px !important;
+  }
+
+  /* Active nav glow */
+  .db-mob-btn.active .db-mob-icon {
+    filter: drop-shadow(0 2px 6px rgba(34,197,94,0.5)) !important;
+  }
+}
+
+/* ── 20. DARK THEME — enhanced mobile contrast ───────────────────── */
+@media (max-width: 1023px) {
+  .dark-theme .db-topbar-title {
+    color: #f1f5f9 !important;
+  }
+  .dark-theme .db-stat-card {
+    box-shadow: 0 2px 16px rgba(0,0,0,0.4) !important;
+  }
+  .dark-theme .db-stat-green  { background: rgba(34,197,94,0.12) !important; }
+  .dark-theme .db-stat-blue   { background: rgba(59,130,246,0.12) !important; }
+  .dark-theme .db-stat-yellow { background: rgba(234,179,8,0.12) !important; }
+  .dark-theme .db-stat-purple { background: rgba(168,85,247,0.12) !important; }
+
+  .dark-theme .dash-treatments-panel {
+    background: #0e1728 !important;
+    border-color: #1e293b !important;
+  }
+  .dark-theme .dash-treat-item {
+    background: rgba(255,255,255,0.02) !important;
+  }
+  .dark-theme .dash-treat-disease {
+    color: #f1f5f9 !important;
+  }
+  .dark-theme .dash-treat-action {
+    color: #94a3b8 !important;
+  }
+  .dark-theme .mp-table-wrap {
+    background: #0e1728 !important;
+  }
+  .dark-theme .mp-timing-card {
+    background: #111b2d !important;
+    border-color: #1e293b !important;
+  }
+}
+
+/* ── 21. STAGGER ENTRANCES — section reveals on mobile ──────────── */
+@media (max-width: 768px) {
+  .db-stats-grid .db-stat-card:nth-child(1) { animation: mob-spring-up 0.42s cubic-bezier(0.16,1,0.3,1) 0.04s both; }
+  .db-stats-grid .db-stat-card:nth-child(2) { animation: mob-spring-up 0.42s cubic-bezier(0.16,1,0.3,1) 0.10s both; }
+  .db-stats-grid .db-stat-card:nth-child(3) { animation: mob-spring-up 0.42s cubic-bezier(0.16,1,0.3,1) 0.16s both; }
+  .db-stats-grid .db-stat-card:nth-child(4) { animation: mob-spring-up 0.42s cubic-bezier(0.16,1,0.3,1) 0.22s both; }
+
+  .db-schemes-grid .db-scheme-card:nth-child(1) { animation: mob-spring-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.06s both; }
+  .db-schemes-grid .db-scheme-card:nth-child(2) { animation: mob-spring-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.12s both; }
+  .db-schemes-grid .db-scheme-card:nth-child(3) { animation: mob-spring-up 0.4s cubic-bezier(0.16,1,0.3,1) 0.18s both; }
+
+  .mp-timing-card:nth-child(1) { animation-delay: 0.04s !important; }
+  .mp-timing-card:nth-child(2) { animation-delay: 0.10s !important; }
+  .mp-timing-card:nth-child(3) { animation-delay: 0.16s !important; }
+  .mp-timing-card:nth-child(4) { animation-delay: 0.22s !important; }
+
+  .ft-guide-card:nth-child(1) { animation-delay: 0.04s !important; }
+  .ft-guide-card:nth-child(2) { animation-delay: 0.10s !important; }
+  .ft-guide-card:nth-child(3) { animation-delay: 0.16s !important; }
+  .ft-guide-card:nth-child(4) { animation-delay: 0.22s !important; }
+}
+
+/* ── 22. SCROLLBAR POLISH on mobile ─────────────────────────────── */
+@media (max-width: 1023px) {
+  .nm-markets-scroll-list::-webkit-scrollbar { width: 4px !important; }
+  .nm-markets-scroll-list::-webkit-scrollbar-thumb {
+    background: rgba(34,197,94,0.3) !important;
+    border-radius: 99px !important;
+  }
+  .db-history-table-wrap, .mp-table-wrap {
+    -webkit-overflow-scrolling: touch !important;
+    scroll-snap-type: none !important;
+  }
+}
+
+/* ── 23. SAFE AREA SUPPORT (iOS notch / home indicator) ─────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @media (max-width: 1023px) {
+    .db-mobile-bar {
+      padding-bottom: max(0.3rem, env(safe-area-inset-bottom)) !important;
+    }
+    .db-main {
+      padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+    }
+  }
+}
+
+/* ── 24. PREFERS REDUCED MOTION — respect accessibility ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -5,6 +5,7 @@ import './styles/index.css'
 import './styles/scanner.css'
 import './styles/scanner2.css'
 import './styles/themes.css'
+import './styles/mobile.css'
 
 const container = document.getElementById('root');
 if (container) {

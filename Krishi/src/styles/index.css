@@ -160,6 +160,20 @@
   }
 }
 
+@keyframes pulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 4px 16px rgba(34,197,94,0.45); }
+  50%       { transform: scale(1.04); box-shadow: 0 6px 24px rgba(59,130,246,0.6); }
+}
+
+@keyframes routeFlow {
+  to { stroke-dashoffset: -24; }
+}
+
+.route-flow {
+  animation: routeFlow 0.8s linear infinite;
+}
+
+
 /* ═══════════════════════════════════════════ */
 /*                 BASE STYLES                 */
 /* ═══════════════════════════════════════════ */
@@ -8170,5 +8184,398 @@ html.dark-theme .text-slate-600,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/*   🏠  PROFESSIONAL HOME PAGE ENHANCEMENTS                          */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Hero ghost button (Login) ──────────────────────────────────── */
+.hero-btn-ghost {
+  padding: 0.9rem 2rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.75rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+.hero-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.55);
+  transform: translateY(-2px);
+}
+
+/* ── Hero eyebrow letter-spacing enhancement ──────────────────── */
+.hero-eyebrow {
+  letter-spacing: 0.3em;
+  font-size: 0.7rem;
+  background: linear-gradient(90deg, #4ade80, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Hero title shadow depth ──────────────────────────────────── */
+.hero-title {
+  text-shadow: 0 8px 48px rgba(0, 0, 0, 0.7);
+}
+
+/* ── Scroll cue pulse ring ────────────────────────────────────── */
+.hero-scroll-cue::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(74, 222, 128, 0.4);
+  animation: scroll-ring-pulse 2.4s ease-in-out infinite;
+  margin-bottom: 0.4rem;
+}
+@keyframes scroll-ring-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50%       { opacity: 1;   transform: scale(1.1); }
+}
+
+/* ── Feature section — refined glassmorphism background ──────── */
+.feature-section {
+  background: radial-gradient(ellipse at 20% 50%, rgba(34, 197, 94, 0.04) 0%, transparent 60%),
+              radial-gradient(ellipse at 80% 50%, rgba(14, 165, 233, 0.04) 0%, transparent 60%),
+              var(--theme-bg);
+}
+
+/* ── Feature card info — refined hover border glow ───────────── */
+.feat-card-info {
+  transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Feat tag dot pulse ───────────────────────────────────────── */
+.feat-tag-dot {
+  animation: feat-dot-ping 2s ease-in-out infinite;
+}
+@keyframes feat-dot-ping {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.6; transform: scale(1.4); }
+}
+
+/* ── Feature stat number gradient shimmer ────────────────────── */
+.feat-stat-num {
+  filter: drop-shadow(0 0 12px currentColor);
+}
+
+/* ── Feature cards mobile responsive ─────────────────────────── */
+@media (max-width: 860px) {
+  .feature-section {
+    flex-direction: column !important;
+    padding: 5vh 1.5rem;
+    gap: 1.5rem;
+  }
+  .feat-card {
+    max-width: 100%;
+    width: 100%;
+    height: 42vw;
+    min-height: 220px;
+    max-height: 320px;
+  }
+}
+
+/* ── Features section v2 professional upgrades ───────────────── */
+.features-section-v2 {
+  padding: 7rem 2rem 5rem;
+}
+
+.features-eyebrow {
+  font-size: 0.7rem;
+  background: linear-gradient(90deg, #22c55e, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 0.2em;
+}
+
+.features-heading {
+  letter-spacing: -0.035em;
+  background: linear-gradient(135deg, #0f172a 0%, #374151 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.dark-theme .features-heading {
+  background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.feature-stat-card {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
+}
+
+/* ── Scroll reveal base state ─────────────────────────────────── */
+.feature-stat-card {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s ease;
+}
+.feature-stat-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Footer professional enhancements ────────────────────────── */
+.footer-modern {
+  background: var(--footer-bg, #0a1628);
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.footer-copy, .footer-credit {
+  font-size: 0.82rem;
+  color: var(--footer-text, #64748b);
+}
+.footer-credit {
+  font-weight: 600;
+  color: #22c55e;
+}
+
+/* ═══════════════════════════════════════════════════════════════════ */
+/*   🗑️  CONFIRM DELETE MODAL (.cdm-*)                               */
+/* ═══════════════════════════════════════════════════════════════════ */
+
+@keyframes cdm-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes cdm-modal-in {
+  from { opacity: 0; transform: scale(0.88) translateY(20px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+
+@keyframes cdm-icon-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20%       { transform: rotate(-8deg); }
+  40%       { transform: rotate(8deg); }
+  60%       { transform: rotate(-5deg); }
+  80%       { transform: rotate(5deg); }
+}
+
+/* ── Overlay backdrop ─────────────────────────────────────────── */
+.cdm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(5, 13, 24, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: cdm-overlay-in 0.22s ease both;
+}
+
+/* ── Modal card ───────────────────────────────────────────────── */
+.cdm-modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 1.75rem;
+  padding: 2.5rem 2rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  border: 1.5px solid rgba(15, 23, 42, 0.12);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.22),
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  animation: cdm-modal-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.dark-theme .cdm-modal {
+  background: rgba(14, 23, 40, 0.96);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.55),
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── Close button ─────────────────────────────────────────────── */
+.cdm-close-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  border: 1.5px solid rgba(15, 23, 42, 0.15);
+  background: rgba(15, 23, 42, 0.04);
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cdm-close-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #ef4444;
+  transform: scale(1.1);
+}
+.dark-theme .cdm-close-btn {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+}
+
+/* ── Warning icon ─────────────────────────────────────────────── */
+.cdm-icon-wrap {
+  margin-bottom: 1.5rem;
+}
+.cdm-icon-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(245, 158, 11, 0.12));
+  border: 2px solid rgba(239, 68, 68, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cdm-icon-shake 0.7s ease 0.4s 1 both;
+  box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.06);
+}
+.cdm-icon {
+  color: #ef4444;
+  filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.4));
+}
+
+/* ── Title ────────────────────────────────────────────────────── */
+.cdm-title {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.025em;
+}
+.dark-theme .cdm-title {
+  color: #f1f5f9;
+}
+
+/* ── Message ──────────────────────────────────────────────────── */
+.cdm-message {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: #475569;
+  margin-bottom: 1.25rem;
+}
+.dark-theme .cdm-message {
+  color: #94a3b8;
+}
+.cdm-item-name {
+  color: #0f172a;
+  font-weight: 700;
+}
+.dark-theme .cdm-item-name {
+  color: #f1f5f9;
+}
+
+/* ── Warning badge ────────────────────────────────────────────── */
+.cdm-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 2rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #ef4444;
+  letter-spacing: 0.02em;
+  margin-bottom: 2rem;
+}
+
+/* ── Action buttons ───────────────────────────────────────────── */
+.cdm-actions {
+  display: flex;
+  gap: 0.85rem;
+  width: 100%;
+}
+
+.cdm-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.85rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.01em;
+}
+
+.cdm-btn-cancel {
+  background: rgba(15, 23, 42, 0.06);
+  color: #475569;
+  border-color: rgba(15, 23, 42, 0.12);
+}
+.cdm-btn-cancel:hover {
+  background: rgba(15, 23, 42, 0.1);
+  border-color: rgba(15, 23, 42, 0.2);
+  transform: translateY(-1px);
+}
+.dark-theme .cdm-btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.dark-theme .cdm-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+}
+
+.cdm-btn-delete {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+.cdm-btn-delete:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.45);
+  transform: translateY(-2px);
+}
+.cdm-btn-delete:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+/* ── Mobile responsive ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .cdm-modal {
+    padding: 2rem 1.25rem 1.5rem;
+    border-radius: 1.25rem;
+  }
+  .cdm-actions {
+    flex-direction: column;
+  }
+  .cdm-title {
+    font-size: 1.25rem;
   }
 }

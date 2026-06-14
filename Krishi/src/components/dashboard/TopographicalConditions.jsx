@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useFarmvestStore } from '../../store/useFarmvestStore'
+import { translations } from '../../translations'
 
 // Crop-specific treatment cards
 const CROP_TREATMENTS = {
@@ -23,7 +25,7 @@ const CROP_TREATMENTS = {
   'Root Vegetables': { icon: '🥕', water: 'Moderate', fertilizer: 'Compost + Potash 30 kg/acre', season: 'Rabi', tip: 'Remove stones from soil bed to prevent forking and improve uniformity.' },
   'Brassicas': { icon: '🥦', water: 'Regular moderate', fertilizer: 'NPK 30:20:20 + micronutrients', season: 'Rabi (Sep–Mar)', tip: 'Scout regularly for diamondback moth — use pheromone traps for monitoring.' },
 }
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Circle, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -33,6 +35,22 @@ const icon = L.icon({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
+})
+
+// Pulsing red user-location draggable pin
+const userPin = L.divIcon({
+  className: '',
+  html: `<div style="width:22px;height:22px;background:#ef4444;border:3px solid #ffffff;border-radius:50%;box-shadow:0 0 0 7px rgba(239,68,68,0.3),0 3px 10px rgba(0,0,0,0.35);cursor:grab;"></div>`,
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+})
+
+// Green flash pin shown briefly after location change
+const flashPin = L.divIcon({
+  className: '',
+  html: `<div style="width:26px;height:26px;background:#22c55e;border:3px solid #ffffff;border-radius:50%;box-shadow:0 0 0 10px rgba(34,197,94,0.35),0 3px 10px rgba(0,0,0,0.3);"></div>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
 })
 
 const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar, Punjab region (highly fertile Alluvial plains)
@@ -72,6 +90,25 @@ function MapUpdater({ center }) {
   return null
 }
 
+// Fires onPick callback when user clicks anywhere on the map
+function LocationPicker({ onPick }) {
+  useMapEvents({
+    click(e) {
+      onPick({ lat: e.latlng.lat, lng: e.latlng.lng })
+    },
+  })
+  return null
+}
+
+// Tracks map pan/zoom centre to show 'Search This Area' button
+function MapMoveTracker({ onMove }) {
+  useMapEvents({
+    dragend(e) { onMove(e.target.getCenter()) },
+    zoomend(e) { onMove(e.target.getCenter()) },
+  })
+  return null
+}
+
 // Env conditions seeded by location (mock live values)
 const getEnvConditions = (pos) => {
   const isNorth = pos.lat > 26
@@ -98,12 +135,18 @@ const LOCATION_CROP_MAP = [
 ]
 
 export default function TopographicalConditions({ onTreatmentSelected }) {
+  const { language } = useFarmvestStore()
+  const t = useCallback((key, fallback) => {
+    return translations[language]?.[key] || translations['en']?.[key] || fallback || key
+  }, [language])
   const [userPos, setUserPos] = useState(DEFAULT_POS)
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [closestSoil, setClosestSoil] = useState(SOIL_REGIONS[0])
   const [soilIndex, setSoilIndex] = useState(0)
   const [envCond, setEnvCond] = useState(getEnvConditions(DEFAULT_POS))
+  const [mapDraggedCenter, setMapDraggedCenter] = useState(null)
+  const [pinFlash, setPinFlash] = useState(false)
 
   // Location-based instant crop suggestions
   const [locationCrops, setLocationCrops] = useState(LOCATION_CROP_MAP[0])
@@ -123,28 +166,37 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
   const [selectedCrop, setSelectedCrop] = useState(null)
   const [cropSentToDashboard, setCropSentToDashboard] = useState(false)
 
-  // Fetch location on load
+  // Commit a new position: update all dependent state
+  const applyNewPosition = (pos) => {
+    setUserPos(pos)
+    determineSoilByLocation(pos)
+    setEnvCond(getEnvConditions(pos))
+    setMapDraggedCenter(null)
+    setPinFlash(true)
+    setTimeout(() => setPinFlash(false), 900)
+  }
+
+  // Fetch location via GPS
   const fetchLocation = () => {
     setLocating(true)
     setLocationError('')
+    setMapDraggedCenter(null)
     if (!navigator.geolocation) {
       setLocationError('Geolocation not supported by this browser.')
       setLocating(false)
-      determineSoilByLocation(DEFAULT_POS)
+      applyNewPosition(DEFAULT_POS)
       return
     }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
-        setUserPos(p)
-        determineSoilByLocation(p)
-        setEnvCond(getEnvConditions(p))
+        applyNewPosition(p)
         setLocating(false)
       },
       () => {
         setLocationError('Access denied. Using default location (Amritsar APMC region).')
-        determineSoilByLocation(DEFAULT_POS)
+        applyNewPosition(DEFAULT_POS)
         setLocating(false)
       },
       { timeout: 8000 }
@@ -165,8 +217,18 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
     setLocCropSent(false)
   }
 
+  // Haversine distance (km) for pan-distance detection
+  const haversineDist = (lat1, lng1, lat2, lng2) => {
+    const R = 6371, p = Math.PI / 180
+    const dLat = (lat2 - lat1) * p, dLng = (lng2 - lng1) * p
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * p) * Math.cos(lat2 * p) * Math.sin(dLng / 2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
+  const showSearchHere = !!(mapDraggedCenter && userPos &&
+    haversineDist(userPos.lat, userPos.lng, mapDraggedCenter.lat, mapDraggedCenter.lng) > 0.8)
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLocation()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -401,38 +463,93 @@ export default function TopographicalConditions({ onTreatmentSelected }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        
-        {/* Left: GIS Terrain Map */}
+
+        {/* Left: Interactive GIS Terrain Map */}
         <div className="db-card" style={{ border: '3px solid var(--text)', borderRadius: '20px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg2)', boxShadow: '5px 5px 0 0 var(--text)' }}>
           <h2 className="db-card-title" style={{ fontSize: '0.95rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            ⛰️ Sat GIS Terrain Map Only
+            ⛰️ Interactive GIS Terrain Map
           </h2>
-          
-          <div style={{ height: '320px', width: '100%', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid var(--text)', zIndex: 1 }}>
-            <MapContainer 
-              center={[userPos.lat, userPos.lng]} 
-              zoom={12} 
-              style={{ height: '100%', width: '100%' }}
+
+          <div style={{ height: '320px', width: '100%', borderRadius: '14px', overflow: 'hidden', border: '2.5px solid var(--text)', position: 'relative', zIndex: 1 }}>
+
+            {/* Floating Search-This-Area button */}
+            {showSearchHere && (
+              <button
+                onClick={() => applyNewPosition(mapDraggedCenter)}
+                style={{
+                  position: 'absolute',
+                  top: '14px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: '#22c55e',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '0.5rem 1.1rem',
+                  borderRadius: '30px',
+                  fontWeight: '800',
+                  fontSize: '0.78rem',
+                  boxShadow: '0 4px 14px rgba(34,197,94,0.45)',
+                  cursor: 'pointer',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                🔍 Analyse This Area
+              </button>
+            )}
+
+            <MapContainer
+              center={[userPos.lat, userPos.lng]}
+              zoom={12}
+              style={{ height: '100%', width: '100%', cursor: 'crosshair' }}
               zoomControl={true}
             >
-              {/* TERRAIN TILE LAYER ONLY: OpenTopoMap provides beautiful topo contour lines and elevations */}
+              {/* Topographic terrain tiles */}
               <TileLayer
                 url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
                 attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
                 maxZoom={17}
               />
-              <Marker position={[userPos.lat, userPos.lng]} icon={icon} />
-              <Circle 
-                center={[userPos.lat, userPos.lng]} 
-                radius={2000} 
-                pathOptions={{ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.15, weight: 2 }}
+
+              {/* Click anywhere to set location */}
+              <LocationPicker onPick={applyNewPosition} />
+
+              {/* Track pan/zoom for Search-This-Area button */}
+              <MapMoveTracker onMove={(c) => setMapDraggedCenter({ lat: c.lat, lng: c.lng })} />
+
+              {/* Draggable user pin — flashes green on location change */}
+              <Marker
+                position={[userPos.lat, userPos.lng]}
+                icon={pinFlash ? flashPin : userPin}
+                draggable={true}
+                eventHandlers={{
+                  dragend: (e) => {
+                    const pos = e.target.getLatLng()
+                    applyNewPosition({ lat: pos.lat, lng: pos.lng })
+                  }
+                }}
+              />
+
+              <Circle
+                center={[userPos.lat, userPos.lng]}
+                radius={2000}
+                pathOptions={{ color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.12, weight: 2, dashArray: '6 4' }}
               />
               <MapUpdater center={userPos} />
             </MapContainer>
           </div>
-          <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: '700', marginTop: '-0.4rem' }}>
-            🗺️ Currently displaying high-altitude contour indices, river channels, and slope gradients.
-          </span>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '-0.2rem' }}>
+            <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: '700', flex: 1 }}>
+              🖱️ Click map or drag pin to choose location · Pan map then hit <strong style={{ color: '#22c55e' }}>Analyse This Area</strong>
+            </span>
+            <span style={{ fontSize: '0.6rem', background: '#f0fdf4', color: '#15803d', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: '800', border: '1px solid #bbf7d0' }}>
+              📍 {userPos.lat.toFixed(4)}°N {userPos.lng.toFixed(4)}°E
+            </span>
+          </div>
         </div>
 
         {/* Right: GPS Soil Auto-Detection */}

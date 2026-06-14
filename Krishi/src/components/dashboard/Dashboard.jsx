@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { UsersAPI, AuthAPI, AIAPI } from '../../services/api'
+import { translations } from '../../translations'
 import MarketPrices from './MarketPrices'
 import CropScanner from './CropScanner'
 import CropSecurity from './CropSecurity'
@@ -360,7 +361,10 @@ function MapLoading() {
 }
 
 export default function Dashboard() {
-  const { user, setUser, setView, theme } = useFarmvestStore()
+  const { user, setUser, setView, theme, language } = useFarmvestStore()
+  const t = (key, fallback) => {
+    return translations[language]?.[key] || translations['en']?.[key] || fallback || key
+  }
   const [activeTab, setActiveTab] = useState('dashboard')
   const [time, setTime] = useState(new Date())
   const [treatments, setTreatments] = useState([])

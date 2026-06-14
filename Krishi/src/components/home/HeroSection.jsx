@@ -34,39 +34,39 @@ export default function HeroSection() {
     return () => observer.disconnect()
   }, [setActiveHeroSection])
 
-  // Feature sections — satellite → tractor (plough) → harvest
+  // Feature sections — fully translated
   const features = [
     {
       id: 'hero-satellite',
       video: videoSatellite,
       accent: '#4ade80',
-      tag: 'AI Vision',
-      title: 'AI Disease Detection',
-      subtitle: 'Smart crop protection powered by artificial intelligence. Upload or scan plant images to receive accurate disease detection, instant recommendations, treatment insights, and preventive measures for healthier crop growth.',
-      stat: '99.7%',
-      statLabel: 'Accuracy',
+      tag: t('feat1Tag', 'AI Vision'),
+      title: t('feat1Title', 'AI Disease Detection'),
+      subtitle: t('feat1Sub', 'Smart crop protection powered by artificial intelligence. Upload or scan plant images to receive accurate disease detection, instant recommendations, treatment insights, and preventive measures for healthier crop growth.'),
+      stat: t('feat1Stat', '99.7%'),
+      statLabel: t('feat1StatLabel', 'Accuracy'),
       flip: false,
     },
     {
       id: 'hero-tractor',
       video: videoTractor,
       accent: '#fde047',
-      tag: 'Smart Cultivation',
-      title: 'Soil Condition Analysis',
-      subtitle: 'Transform traditional farming with intelligent soil monitoring, real-time environmental insights, nutrient tracking, and AI-driven recommendations designed to maximize crop performance and long-term soil sustainability.',
-      stat: '3.8×',
-      statLabel: 'Field Efficiency',
+      tag: t('feat2Tag', 'Smart Cultivation'),
+      title: t('feat2Title', 'Soil Condition Analysis'),
+      subtitle: t('feat2Sub', 'Transform traditional farming with intelligent soil monitoring, real-time environmental insights, nutrient tracking, and AI-driven recommendations designed to maximize crop performance and long-term soil sustainability.'),
+      stat: t('feat2Stat', '3.8×'),
+      statLabel: t('feat2StatLabel', 'Field Efficiency'),
       flip: true,
     },
     {
       id: 'hero-harvest',
       video: videoHarvest,
       accent: '#60a5fa',
-      tag: 'Marketplace Intelligence',
-      title: 'Market Analyzer',
-      subtitle: 'Explore nearby markets, monitor real-time crop prices, analyze demand fluctuations, and access intelligent market insights designed to help farmers maximize revenue and optimize agricultural trade.',
-      stat: '4.2×',
-      statLabel: 'Profit Margin',
+      tag: t('feat3Tag', 'Marketplace Intelligence'),
+      title: t('feat3Title', 'Market Analyzer'),
+      subtitle: t('feat3Sub', 'Explore nearby markets, monitor real-time crop prices, analyze demand fluctuations, and access intelligent market insights designed to help farmers maximize revenue and optimize agricultural trade.'),
+      stat: t('feat3Stat', '4.2×'),
+      statLabel: t('feat3StatLabel', 'Profit Margin'),
       flip: false,
     },
   ]
@@ -86,16 +86,19 @@ export default function HeroSection() {
           <p className="hero-eyebrow">{t('aiPoweredFarming', 'AI-Powered Precision Farming')}</p>
           <h1 className="hero-title">Krishi<span className="hero-title-accent"> AI</span></h1>
           <p className="hero-subtitle">
-            {t('connectGrid', 'Smart farming powered by artificial intelligence. Connect your farming grid to satellite telemetry streams.')}
+            {t('heroSubtitle', 'Smart farming powered by artificial intelligence. Connect your farming grid to satellite telemetry streams.')}
           </p>
           <div className="hero-cta-row">
             <button className="hero-btn-primary" onClick={() => setView('get-started')}>
               {t('getStarted', 'Get Started')} →
             </button>
+            <button className="hero-btn-ghost" onClick={() => setView('login')}>
+              {t('login', 'Login')}
+            </button>
           </div>
         </div>
         <div className="hero-scroll-cue">
-          <span>Scroll to explore</span>
+          <span>{t('scrollExplore', 'Scroll to explore')}</span>
           <div className="hero-scroll-line" />
         </div>
       </section>

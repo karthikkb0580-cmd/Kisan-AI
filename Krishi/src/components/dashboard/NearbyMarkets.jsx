@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { AIAPI } from '../../services/api'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
+import { translations } from '../../translations'
 
 // Fix Vite + Leaflet default icon path issue
 delete L.Icon.Default.prototype._getIconUrl
@@ -61,8 +63,17 @@ const haversine = (lat1, lng1, lat2, lng2) => {
 function MapController({ center, zoom }) {
   const map = useMap()
   useEffect(() => {
-    if (center) map.setView(center, zoom || 11, { animate: true })
+    if (center) map.setView(center, zoom || map.getZoom(), { animate: true, duration: 0.5 })
   }, [center, zoom, map])
+  return null
+}
+
+// Smooth-follow controller for navigation mode
+function NavFollowController({ pos, active }) {
+  const map = useMap()
+  useEffect(() => {
+    if (active && pos) map.setView(pos, 15, { animate: true, duration: 0.6 })
+  }, [pos, active, map])
   return null
 }
 
@@ -83,31 +94,145 @@ function MapEvents({ onMapClick, onMapMove }) {
 }
 
 export default function NearbyMarkets() {
-  const { farmerCrops } = useFarmvestStore()
-  const [phase, setPhase] = useState('idle') // idle | locating | loading | ready | error
+  const { farmerCrops, language } = useFarmvestStore()
+  const t = useCallback((key, fallback) => {
+    return translations[language]?.[key] || translations['en']?.[key] || fallback || key
+  }, [language])
+  const [phase, setPhase] = useState('idle')
   const [error, setError] = useState('')
   const [userPos, setUserPos] = useState(null)
   const [markets, setMarkets] = useState([])
   const [selectedIdx, setSelectedIdx] = useState(null)
   const [routeCoordinates, setRouteCoordinates] = useState([])
+  const [routeSegments, setRouteSegments] = useState([]) // [{coords, color}]
   const [routeInfo, setRouteInfo] = useState(null)
   const [routeInstructions, setRouteInstructions] = useState([])
   const [isNavigating, setIsNavigating] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [cropGrown, setCropGrown] = useState(farmerCrops[0] || 'Wheat')
+  const [tileLayer, setTileLayer] = useState('roads')
+  const [showTraffic, setShowTraffic] = useState(true)
+  // Navigation mode state
+  const [navMode, setNavMode] = useState(false)         // fullscreen nav overlay
+  const [vehiclePos, setVehiclePos] = useState(null)    // [lat, lng] of animated vehicle
+  const [navStepIdx, setNavStepIdx] = useState(0)       // current route step index
+  const [navCoordIdx, setNavCoordIdx] = useState(0)     // current coord index along route
+  const [navRunning, setNavRunning] = useState(false)   // animation playing
+  const navTimerRef = useCallback(() => {}, [])
+  const [navETA, setNavETA] = useState(0)               // remaining minutes
+
+  const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_KEY
+  const hasTomTom = TOMTOM_KEY && TOMTOM_KEY !== 'your_tomtom_api_key_here'
+
+  // Vehicle icon for navigation
+  const vehicleIcon = L.divIcon({
+    className: '',
+    html: `<div style="
+      width:28px;height:28px;
+      background:#3b82f6;
+      border:3px solid #fff;
+      border-radius:50%;
+      box-shadow:0 0 0 6px rgba(59,130,246,0.35),0 3px 10px rgba(0,0,0,0.4);
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;line-height:1;
+    ">🚜</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  })
+
+  // Smart multilingual speech
+  const speakStep = useCallback((text) => {
+    if (!('speechSynthesis' in window)) return
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance(text)
+    utter.rate = 0.92
+    utter.pitch = 1.05
+    // Pick a voice matching the browser language
+    const lang = navigator.language || 'en-IN'
+    const voices = window.speechSynthesis.getVoices()
+    const match = voices.find(v => v.lang.startsWith(lang.slice(0,2))) ||
+                  voices.find(v => v.lang.startsWith('en')) ||
+                  voices[0]
+    if (match) utter.voice = match
+    utter.lang = match?.lang || lang
+    window.speechSynthesis.speak(utter)
+  }, [])
+
+  // Preload voices (Chrome needs this)
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.getVoices()
+      window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices()
+    }
+  }, [])
 
   const ALL_KNOWN_CROPS = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Mustard', 'Tomato', 'Potato', 'Onion', 'Soybean', 'Apple', 'Grape']
   const otherCrops = ALL_KNOWN_CROPS.filter(c => !farmerCrops.includes(c))
 
-  const DEFAULT_POS = { lat: 31.634, lng: 74.872 } // Amritsar APMC
+  const DEFAULT_POS = { lat: 31.634, lng: 74.872 }
 
   const [mapDraggedCenter, setMapDraggedCenter] = useState(null)
+  const [locationLabel, setLocationLabel] = useState('Detecting…')
+  const [locationMode, setLocationMode] = useState('gps')
+  const [locationWidgetOpen, setLocationWidgetOpen] = useState(false)
+  const [cityInput, setCityInput] = useState('')
+  const [citySearching, setCitySearching] = useState(false)
+  const [manualLat, setManualLat] = useState('')
+  const [manualLng, setManualLng] = useState('')
 
   const showSearchHere = useMemo(() => {
     if (!mapDraggedCenter || !userPos) return false
     const dist = haversine(userPos.lat, userPos.lng, mapDraggedCenter.lat, mapDraggedCenter.lng)
-    return dist > 1.0 // show button if center moved by more than 1km
+    return dist > 1.0
   }, [mapDraggedCenter, userPos])
+
+  // Transport cost estimate: ₹15/km mini-truck, ₹22/km medium, ₹30/km large
+  const transportCost = useCallback((distKm) => {
+    const d = parseFloat(distKm)
+    if (isNaN(d)) return null
+    return { mini: Math.round(d * 15), medium: Math.round(d * 22), large: Math.round(d * 30) }
+  }, [])
+
+  // Time-of-day traffic advisory
+  const trafficAdvisory = () => {
+    const h = new Date().getHours()
+    if (h >= 8 && h < 10) return { level: 'High', color: '#ef4444', tip: 'Morning rush — depart before 7AM or after 10AM' }
+    if (h >= 17 && h < 20) return { level: 'High', color: '#ef4444', tip: 'Evening rush — delay trip by 1–2 hours' }
+    if (h >= 10 && h < 17) return { level: 'Low', color: '#22c55e', tip: 'Good time to travel — roads are clear' }
+    return { level: 'Low', color: '#22c55e', tip: 'Off-peak hours — minimal traffic expected' }
+  }
+
+  const searchByCity = async () => {
+    if (!cityInput.trim()) return
+    setCitySearching(true)
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cityInput)}&format=json&limit=1`)
+      const data = await res.json()
+      if (data && data.length > 0) {
+        const p = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) }
+        const label = data[0].display_name.split(',').slice(0, 2).join(', ')
+        setLocationLabel(label)
+        setUserPos(p)
+        setLocationWidgetOpen(false)
+        loadData(p, cropGrown)
+      } else {
+        setError(`Could not find "${cityInput}". Try a different name.`)
+      }
+    } catch { setError('City search failed.') }
+    setCitySearching(false)
+  }
+
+  const applyManualCoords = () => {
+    const lat = parseFloat(manualLat), lng = parseFloat(manualLng)
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setError('Invalid coordinates.')
+      return
+    }
+    setLocationLabel(`${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`)
+    setUserPos({ lat, lng })
+    setLocationWidgetOpen(false)
+    loadData({ lat, lng }, cropGrown)
+  }
 
   // Fetch real markets using Overpass API
   const fetchOverpassMarkets = async (lat, lng) => {
@@ -145,43 +270,70 @@ export default function NearbyMarkets() {
     return results.filter(r => r.lat !== lat && r.lng !== lng)
   }
 
+  // Speed → traffic color
+  const speedToColor = (kmh) => {
+    if (kmh >= 60) return '#22c55e'   // green: free flow
+    if (kmh >= 30) return '#f59e0b'   // amber: moderate
+    return '#ef4444'                   // red: congested
+  }
+
   // Load routing from OSRM
   const getOSRMRoute = async (start, end) => {
     try {
-      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true`
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson&steps=true&annotations=true`
       const res = await fetch(url)
       if (!res.ok) return null
       const data = await res.json()
       if (data.routes && data.routes.length > 0) {
         const route = data.routes[0]
-        const coords = route.geometry.coordinates.map(c => [c[1], c[0]])
+        const allCoords = route.geometry.coordinates.map(c => [c[1], c[0]])
         const distanceKm = (route.distance / 1000).toFixed(1)
         const durationMin = Math.round(route.duration / 60)
-        
+
+        // Build per-step color segments from OSRM steps
+        const segments = []
+        if (route.legs?.[0]?.steps) {
+          let segStart = 0
+          const totalCoords = allCoords.length
+          const steps = route.legs[0].steps
+          steps.forEach((step, si) => {
+            const speedKmh = step.duration > 0
+              ? (step.distance / 1000) / (step.duration / 3600)
+              : 80
+            const color = speedToColor(speedKmh)
+            const fraction = step.distance / route.distance
+            const segLen = Math.max(2, Math.round(fraction * totalCoords))
+            const segEnd = Math.min(segStart + segLen, totalCoords)
+            if (segEnd > segStart) {
+              segments.push({ coords: allCoords.slice(segStart, segEnd + 1), color })
+              segStart = segEnd
+            }
+          })
+          if (segStart < totalCoords - 1) {
+            segments.push({ coords: allCoords.slice(segStart), color: '#22c55e' })
+          }
+        } else {
+          segments.push({ coords: allCoords, color: '#22c55e' })
+        }
+
         let instructions = []
-        if (route.legs && route.legs[0] && route.legs[0].steps) {
+        if (route.legs?.[0]?.steps) {
           instructions = route.legs[0].steps.map(step => {
             const { maneuver, name, distance } = step
             let text = ''
             if (maneuver.type === 'depart') text = `Head ${maneuver.modifier || 'straight'}`
-            else if (maneuver.type === 'arrive') text = `You will arrive at your destination`
+            else if (maneuver.type === 'arrive') text = 'You will arrive at your destination'
             else if (maneuver.type === 'turn') text = `Turn ${maneuver.modifier || ''}`.trim()
             else text = `Continue ${maneuver.modifier || 'straight'}`
-
             if (name) text += ` onto ${name}`
-            if (distance > 0) {
-              if (distance > 1000) text += ` for ${(distance / 1000).toFixed(1)} kilometers`
-              else text += ` for ${Math.round(distance)} meters`
-            }
+            if (distance > 0) text += distance > 1000 ? ` for ${(distance/1000).toFixed(1)} km` : ` for ${Math.round(distance)} m`
             return text
           })
         }
 
-        return { coords, distance: `${distanceKm} km`, duration: `${durationMin} mins`, instructions }
+        return { coords: allCoords, segments, distance: `${distanceKm} km`, duration: `${durationMin} mins`, instructions }
       }
-    } catch {
-      return null
-    }
+    } catch { return null }
     return null
   }
 
@@ -190,6 +342,7 @@ export default function NearbyMarkets() {
     setError('')
     setSelectedIdx(null)
     setRouteCoordinates([])
+    setRouteSegments([])
     setRouteInfo(null)
     setRouteInstructions([])
     setIsNavigating(false)
@@ -247,13 +400,15 @@ export default function NearbyMarkets() {
       return
     }
     navigator.geolocation.getCurrentPosition(
-      pos => {
+      (pos) => {
         const p = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setLocationLabel(`GPS · ${p.lat.toFixed(3)}°N ${p.lng.toFixed(3)}°E`)
         setUserPos(p)
         loadData(p, cropGrown)
       },
       () => {
         setError('Location access denied — showing default Amritsar region.')
+        setLocationLabel('Amritsar (default)')
         setUserPos(DEFAULT_POS)
         loadData(DEFAULT_POS, cropGrown)
       },
@@ -287,63 +442,105 @@ export default function NearbyMarkets() {
   useEffect(() => {
     if (selectedIdx === null || !userPos) {
       setRouteCoordinates([])
+      setRouteSegments([])
       setRouteInfo(null)
       setRouteInstructions([])
       setIsNavigating(false)
       return
     }
-    const target = markets[selectedIdx]
-    if (!target) return
-
-    getOSRMRoute(userPos, target).then(route => {
-      if (route) {
-        setRouteCoordinates(route.coords)
-        setRouteInfo({ distance: route.distance, duration: route.duration })
-        setRouteInstructions(route.instructions || [])
+    const market = markets[selectedIdx]
+    if (!market) return
+    const load = async () => {
+      const result = await getOSRMRoute(userPos, market)
+      if (result) {
+        setRouteCoordinates(result.coords)
+        setRouteSegments(result.segments || [])
+        setRouteInfo({ distance: result.distance, duration: result.duration })
+        setRouteInstructions(result.instructions)
       } else {
-        // Direct flight line fallback
-        setRouteCoordinates([[userPos.lat, userPos.lng], [target.lat, target.lng]])
-        setRouteInfo({ distance: `${target.dist} km`, duration: `${Math.round(target.dist * 1.5)} mins` })
-        setRouteInstructions([`Head directly towards ${target.name} for ${target.dist} km`])
+        setRouteCoordinates([[userPos.lat, userPos.lng], [market.lat, market.lng]])
+        setRouteSegments([{ coords: [[userPos.lat, userPos.lng], [market.lat, market.lng]], color: '#f59e0b' }])
+        setRouteInfo({ distance: `${market.dist} km`, duration: `${Math.round(market.dist * 1.5)} mins` })
+        setRouteInstructions([`Head directly towards ${market.name} for ${market.dist} km`])
       }
       setIsNavigating(false)
       setCurrentStep(0)
-    })
+    }
+    load()
   }, [selectedIdx, userPos, markets])
 
   const speakInstruction = useCallback((text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel() // stop any current speech
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.rate = 0.9
-      utterance.pitch = 1
-      window.speechSynthesis.speak(utterance)
-    }
-  }, [])
+    speakStep(text)
+  }, [speakStep])
 
-  const startVoiceNavigation = () => {
-    setIsNavigating(true)
-    setCurrentStep(0)
-    const target = markets[selectedIdx]
-    if (routeInstructions.length > 0 && target) {
-      speakInstruction(`Navigating to ${target.name}. ` + routeInstructions[0])
-    }
+  // ── Immersive Navigation ──────────────────────────────────────────
+  const startNavigation = () => {
+    if (!routeCoordinates.length || !routeInstructions.length) return
+    const market = markets[selectedIdx]
+    setNavMode(true)
+    setNavRunning(true)
+    setNavStepIdx(0)
+    setNavCoordIdx(0)
+    setVehiclePos(routeCoordinates[0])
+    const totalMin = routeInfo ? parseInt(routeInfo.duration) : 30
+    setNavETA(totalMin)
+    speakStep(`Navigation started. Heading to ${market?.name}. ${routeInstructions[0]}`)
   }
+
+  const stopNavigation = () => {
+    setNavMode(false)
+    setNavRunning(false)
+    setVehiclePos(null)
+    setNavCoordIdx(0)
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+  }
+
+  // Animate vehicle along route
+  useEffect(() => {
+    if (!navRunning || !routeCoordinates.length) return
+    const totalCoords = routeCoordinates.length
+    const totalMin = routeInfo ? parseInt(routeInfo.duration) : 30
+    // Move one coord every ~(totalDuration/totalCoords) ms, min 120ms
+    const stepMs = Math.max(120, Math.round((totalMin * 60 * 1000) / totalCoords / 30))
+    const interval = setInterval(() => {
+      setNavCoordIdx(prev => {
+        const next = prev + 1
+        if (next >= totalCoords) {
+          clearInterval(interval)
+          setNavRunning(false)
+          speakStep('You have arrived at your destination. Journey complete.')
+          return prev
+        }
+        setVehiclePos(routeCoordinates[next])
+        // Update ETA
+        const remaining = Math.round(totalMin * (1 - next / totalCoords))
+        setNavETA(remaining)
+        // Announce next instruction at matching step boundary
+        if (routeInstructions.length > 1) {
+          const stepSize = Math.floor(totalCoords / routeInstructions.length)
+          const stepNum = Math.floor(next / stepSize)
+          if (next % stepSize === 0 && stepNum < routeInstructions.length) {
+            setNavStepIdx(stepNum)
+            speakStep(routeInstructions[stepNum])
+          }
+        }
+        return next
+      })
+    }, stepMs)
+    return () => clearInterval(interval)
+  }, [navRunning, routeCoordinates, routeInstructions, routeInfo, speakStep])
+
+  const startVoiceNavigation = () => startNavigation()
 
   const nextStep = () => {
     if (currentStep < routeInstructions.length - 1) {
       const nextIdx = currentStep + 1
       setCurrentStep(nextIdx)
-      speakInstruction(routeInstructions[nextIdx])
+      speakStep(routeInstructions[nextIdx])
     } else {
-      speakInstruction("You have arrived at your destination.")
+      speakStep('You have arrived at your destination.')
       setIsNavigating(false)
     }
-  }
-
-  const stopNavigation = () => {
-    setIsNavigating(false)
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel()
   }
 
   const selectedMarket = selectedIdx !== null ? markets[selectedIdx] : null
@@ -358,52 +555,143 @@ export default function NearbyMarkets() {
 
   return (
     <div className="db-section">
+
+      {/* ══ IMMERSIVE NAVIGATION OVERLAY — rendered via portal to overlay ALL content ══ */}
+      {navMode && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: '#0f172a',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          {/* Top HUD */}
+          <div style={{ background: 'rgba(15,23,42,0.97)', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <button onClick={stopNavigation}
+              style={{ background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.45rem 1rem', fontWeight: '900', fontSize: '0.8rem', cursor: 'pointer', flexShrink: 0 }}>
+              ❌ Exit
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.62rem', fontWeight: '900', textTransform: 'uppercase', color: '#64748b' }}>Navigating to</div>
+              <div style={{ fontWeight: '900', color: '#fff', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{selectedMarket?.name}</div>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: '1.4rem', fontWeight: '900', color: '#22c55e', lineHeight: 1 }}>{navETA}<span style={{ fontSize: '0.7rem', marginLeft: '3px' }}>min</span></div>
+              <div style={{ fontSize: '0.65rem', color: '#64748b' }}>{routeInfo?.distance}</div>
+            </div>
+          </div>
+
+          {/* Current step card */}
+          <div style={{ background: '#1e293b', padding: '0.85rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>
+              {navStepIdx % 2 === 0 ? '➡️' : '↪️'}
+            </div>
+            <div>
+              <div style={{ fontSize: '0.6rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginBottom: '2px' }}>Step {navStepIdx + 1} of {routeInstructions.length}</div>
+              <div style={{ color: '#fff', fontSize: '0.92rem', fontWeight: '700', lineHeight: 1.4 }}>{routeInstructions[navStepIdx] || 'Follow the route'}</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ height: '4px', background: '#1e293b' }}>
+            <div style={{ height: '100%', background: 'linear-gradient(90deg,#22c55e,#3b82f6)', width: `${Math.round((navCoordIdx / Math.max(routeCoordinates.length - 1, 1)) * 100)}%`, transition: 'width 0.3s ease' }} />
+          </div>
+
+          {/* Full-screen map */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <MapContainer
+              center={vehiclePos || mapCenter}
+              zoom={15}
+              style={{ width: '100%', height: '100%' }}
+              zoomControl={false}
+            >
+              <NavFollowController pos={vehiclePos} active={navRunning} />
+              {tileLayer === 'roads' && <TileLayer attribution='&copy; CARTO &copy; OSM' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />}
+              {tileLayer === 'street' && <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />}
+              {tileLayer === 'satellite' && <TileLayer attribution='&copy; Esri' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />}
+              {showTraffic && hasTomTom && <TileLayer url={`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`} opacity={0.75} zIndex={500} />}
+              {routeSegments.map((seg, i) => <Polyline key={i} positions={seg.coords} pathOptions={{ color: seg.color, weight: 8, opacity: 0.9, lineCap: 'round' }} />)}
+              <Polyline positions={routeCoordinates} pathOptions={{ color: '#fff', weight: 3, opacity: 0.5, dashArray: '8 16', className: 'route-flow' }} />
+              {vehiclePos && <Marker position={vehiclePos} icon={vehicleIcon} />}
+              {selectedMarket && <Marker position={[selectedMarket.lat, selectedMarket.lng]} icon={marketIcon('#22c55e', true)} />}
+            </MapContainer>
+
+            {/* Pause/Resume */}
+            <button onClick={() => setNavRunning(r => !r)}
+              style={{ position: 'absolute', bottom: '1rem', right: '1rem', zIndex: 1000, background: navRunning ? '#f59e0b' : '#22c55e', color: '#fff', border: 'none', borderRadius: '50%', width: '52px', height: '52px', fontSize: '1.2rem', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,0,0,0.4)' }}>
+              {navRunning ? '⏸️' : '▶️'}
+            </button>
+          </div>
+        </div>
+      , document.body)}
       <div className="nm-header-row" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
         <div>
-          <h1 className="db-page-title">🛒 Nearby Markets</h1>
-          <p className="db-page-sub">Real agricultural markets, sabzi mandis, and APMCs — Drag red pin or click anywhere to search!</p>
+          <h1 className="db-page-title">{t('nearbyMarkets', '🛒 Nearby Markets')}</h1>
+          <p className="db-page-sub">{t('nearbyMarketsSub', 'Real agricultural markets, sabzi mandis, and APMCs — click map or drag pin to search!')}</p>
         </div>
-        
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select 
-            value={cropGrown}
-            onChange={(e) => setCropGrown(e.target.value)}
-            style={{
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              border: '1.5px solid var(--border)',
-              background: 'var(--bg2)',
-              color: 'var(--text)',
-              fontSize: '0.85rem',
-              fontWeight: 'bold',
-              minWidth: '220px',
-              cursor: 'pointer'
-            }}
-          >
-            <optgroup label="Your Priority Crops">
-              {farmerCrops.map(c => <option key={c} value={c}>{c}</option>)}
-            </optgroup>
-            <optgroup label="Other Crops">
-              {otherCrops.map(c => <option key={c} value={c}>{c}</option>)}
-            </optgroup>
+          <select value={cropGrown} onChange={(e) => setCropGrown(e.target.value)}
+            style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.85rem', fontWeight: 'bold', minWidth: '200px', cursor: 'pointer' }}>
+            <optgroup label={t('priorityCrops', 'Your Priority Crops')}>{farmerCrops.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
+            <optgroup label={t('otherCrops', 'Other Crops')}>{otherCrops.map(c => <option key={c} value={c}>{c}</option>)}</optgroup>
           </select>
-          <button 
-            className="nm-locate-btn" 
-            onClick={handleAnalyze} 
-            disabled={phase === 'locating' || phase === 'loading'}
-            style={{ background: '#22c55e', color: 'white' }}
-          >
-            {phase === 'locating' ? '📡 Locating…' : phase === 'loading' ? '🔍 Analyzing…' : '✨ Analyze Markets'}
-          </button>
-          <button 
-            className="nm-locate-btn" 
-            onClick={getLocation} 
-            disabled={phase === 'locating' || phase === 'loading'}
-            style={{ background: '#3b82f6', color: 'white' }}
-          >
-            📍 Location
+          <button className="nm-locate-btn" onClick={handleAnalyze} disabled={phase === 'locating' || phase === 'loading'} style={{ background: '#22c55e', color: 'white' }}>
+            {phase === 'locating' ? t('locating', '📡 Locating…') : phase === 'loading' ? t('analyzing', '🔍 Analyzing…') : t('analyzeMarkets', '✨ Analyze Markets')}
           </button>
         </div>
+      </div>
+
+      {/* ── LOCATION WIDGET ── */}
+      <div style={{ background: 'var(--bg2)', border: '2px solid var(--border)', borderRadius: '14px', marginBottom: '1rem', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1rem', cursor: 'pointer', gap: '0.5rem' }}
+          onClick={() => setLocationWidgetOpen(o => !o)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '1.1rem' }}>📍</span>
+            <div>
+              <span style={{ fontSize: '0.58rem', fontWeight: '900', textTransform: 'uppercase', color: '#64748b', display: 'block' }}>{t('searchLocation', 'Search Location')}</span>
+              <strong style={{ fontSize: '0.8rem', color: 'var(--text)' }}>{locationLabel}</strong>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.62rem', background: '#f0fdf4', color: '#15803d', padding: '0.15rem 0.5rem', borderRadius: '20px', fontWeight: '800', border: '1px solid #bbf7d0' }}>{t('autoSorted', 'Markets auto-sorted by distance')}</span>
+            <span style={{ fontSize: '0.7rem', color: '#94a3b8', transform: locationWidgetOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>▼</span>
+          </div>
+        </div>
+        {locationWidgetOpen && (
+          <div style={{ borderTop: '1.5px solid var(--border)', padding: '0.85rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg3)', borderRadius: '9px', padding: '0.25rem' }}>
+              {[['gps', t('gps', '📡 GPS')],['city', t('city', '🔍 City')],['manual', t('coords', '🗺️ Coords')]].map(([m, l]) => (
+                <button key={m} onClick={() => setLocationMode(m)}
+                   style={{ flex: 1, padding: '0.4rem', borderRadius: '7px', border: 'none', fontWeight: '800', fontSize: '0.7rem', cursor: 'pointer', background: locationMode === m ? '#0f172a' : 'transparent', color: locationMode === m ? '#22c55e' : '#64748b' }}>{l}</button>
+              ))}
+            </div>
+            {locationMode === 'gps' && (
+              <button onClick={() => { getLocation(); setLocationWidgetOpen(false) }} disabled={phase === 'locating'}
+                style={{ padding: '0.55rem 1rem', borderRadius: '9px', background: '#3b82f6', color: '#fff', border: 'none', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer' }}>
+                {phase === 'locating' ? t('locating', '📡 Detecting…') : t('useGps', '📍 Use My GPS Location')}
+              </button>
+            )}
+            {locationMode === 'city' && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input value={cityInput} onChange={e => setCityInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchByCity()}
+                  placeholder={t('cityPlaceholder', 'City / village / district…')}
+                  style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.78rem' }} />
+                <button onClick={searchByCity} disabled={citySearching}
+                  style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: '#22c55e', color: '#fff', border: 'none', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer' }}>
+                  {citySearching ? '🔍…' : t('search', '🔍 Search')}
+                </button>
+              </div>
+            )}
+            {locationMode === 'manual' && (
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input type="number" value={manualLat} onChange={e => setManualLat(e.target.value)} placeholder={t('latitude', 'Latitude')}
+                  style={{ flex: 1, minWidth: '120px', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.78rem' }} />
+                <input type="number" value={manualLng} onChange={e => setManualLng(e.target.value)} placeholder={t('longitude', 'Longitude')}
+                  style={{ flex: 1, minWidth: '120px', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg2)', color: 'var(--text)', fontSize: '0.78rem' }} />
+                <button onClick={applyManualCoords}
+                  style={{ padding: '0.5rem 1rem', borderRadius: '8px', background: '#0f172a', color: '#22c55e', border: '2px solid #22c55e', fontWeight: '800', fontSize: '0.75rem', cursor: 'pointer' }}>{t('apply', '✓ Apply')}</button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -453,13 +741,93 @@ export default function NearbyMarkets() {
               style={{ width: '100%', height: '100%', borderRadius: '14px' }}
               zoomControl={true}
             >
+              <style>{`
+                @keyframes routeFlow { to { stroke-dashoffset: -24; } }
+                .route-flow { animation: routeFlow 0.8s linear infinite; }
+              `}</style>
               <MapController center={selectedMarket ? [selectedMarket.lat, selectedMarket.lng] : mapCenter} />
               <MapEvents onMapClick={handleMapClick} onMapMove={handleMapMove} />
-              
-              <TileLayer
-                attribution='&copy; OpenStreetMap contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+
+              {/* Tile layer */}
+              {tileLayer === 'roads' && (
+                <TileLayer
+                  attribution='&copy; <a href="https://carto.com">CARTO</a> &copy; OpenStreetMap contributors'
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                />
+              )}
+              {tileLayer === 'street' && (
+                <TileLayer
+                  attribution='&copy; OpenStreetMap contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+              )}
+              {tileLayer === 'satellite' && (
+                <TileLayer
+                  attribution='&copy; Esri &mdash; Source: Esri'
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                />
+              )}
+
+              {/* — TomTom Real-Time Traffic Flow overlay — */}
+              {showTraffic && hasTomTom && (
+                <TileLayer
+                  key={`tt-flow-${TOMTOM_KEY}`}
+                  attribution='Traffic &copy; <a href="https://www.tomtom.com">TomTom</a>'
+                  url={`https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`}
+                  opacity={0.75}
+                  zIndex={500}
+                />
+              )}
+              {/* TomTom Traffic Incidents overlay */}
+              {showTraffic && hasTomTom && (
+                <TileLayer
+                  key={`tt-inc-${TOMTOM_KEY}`}
+                  attribution=''
+                  url={`https://api.tomtom.com/traffic/map/4/tile/incidents/s3/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`}
+                  opacity={0.9}
+                  zIndex={501}
+                />
+              )}
+
+              {/* Map controls: tile switcher + traffic toggle */}
+              <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {[['roads','🛣️ Roads'],['street','🗺️ Street'],['satellite','🛰️ Satellite']].map(([key, label]) => (
+                  <button key={key} onClick={() => setTileLayer(key)}
+                    style={{ padding: '4px 8px', background: tileLayer === key ? '#0f172a' : 'rgba(255,255,255,0.9)', color: tileLayer === key ? '#22c55e' : '#0f172a', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>
+                    {label}
+                  </button>
+                ))}
+                <button onClick={() => setShowTraffic(t => !t)}
+                  style={{ padding: '4px 8px', background: showTraffic && hasTomTom ? '#ef4444' : 'rgba(255,255,255,0.9)', color: showTraffic && hasTomTom ? '#fff' : '#64748b', border: `1px solid ${showTraffic && hasTomTom ? '#ef4444' : '#e2e8f0'}`, borderRadius: '6px', fontSize: '0.65rem', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.15)', marginTop: '4px' }}>
+                  {showTraffic && hasTomTom ? '🚦 Traffic ON' : '🚦 Traffic OFF'}
+                </button>
+              </div>
+
+              {/* Traffic legend (only when live traffic is on) */}
+              {showTraffic && hasTomTom && (
+                <div style={{ position: 'absolute', bottom: '70px', left: '10px', zIndex: 1000, background: 'rgba(15,23,42,0.88)', borderRadius: '10px', padding: '0.5rem 0.75rem', fontSize: '0.62rem', color: '#fff', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <div style={{ fontWeight: '900', marginBottom: '3px', color: '#fbbf24' }}>🚦 Live Traffic</div>
+                  {[['#22c55e','Free flow'],['#a3e635','Slow (80%)'],['#fbbf24','Very slow (60%)'],['#f97316','Congested (40%)'],['#ef4444','Gridlock']].map(([c,l]) => (
+                    <div key={c} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ width: '20px', height: '5px', background: c, borderRadius: '3px', display: 'inline-block' }} />
+                      <span>{l}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Setup prompt if no TomTom key */}
+              {showTraffic && !hasTomTom && (
+                <div style={{ position: 'absolute', bottom: '70px', left: '10px', zIndex: 1000, background: 'rgba(15,23,42,0.92)', borderRadius: '12px', padding: '0.65rem 0.85rem', fontSize: '0.68rem', color: '#fff', maxWidth: '220px', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: '900', color: '#fbbf24', marginBottom: '4px' }}>🚦 Enable Live Traffic</div>
+                  <div style={{ color: '#cbd5e1', marginBottom: '6px' }}>Get a <strong style={{ color: '#22c55e' }}>free TomTom API key</strong> (50k tiles/day, no credit card):</div>
+                  <a href="https://developer.tomtom.com" target="_blank" rel="noreferrer"
+                    style={{ display: 'block', background: '#22c55e', color: '#0f172a', fontWeight: '900', padding: '4px 8px', borderRadius: '7px', textDecoration: 'none', textAlign: 'center', fontSize: '0.65rem' }}>
+                    → developer.tomtom.com
+                  </a>
+                  <div style={{ color: '#94a3b8', marginTop: '5px', fontSize: '0.6rem' }}>Then add to .env: <code style={{ color: '#a78bfa' }}>VITE_TOMTOM_KEY=your_key</code></div>
+                </div>
+              )}
 
               {/* User Position Marker */}
               {userPos && (
@@ -510,13 +878,22 @@ export default function NearbyMarkets() {
                 </Marker>
               ))}
 
-              {/* Real-time route line */}
+              {/* Traffic-coloured route segments */}
+              {routeSegments.map((seg, i) => (
+                <Polyline key={`seg-${i}`}
+                  positions={seg.coords}
+                  pathOptions={{ color: seg.color, weight: 7, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }}
+                />
+              ))}
+              {/* Animated flow overlay */}
               {routeCoordinates.length > 0 && (
                 <Polyline
                   positions={routeCoordinates}
-                  pathOptions={{ color: '#22c55e', weight: 5, opacity: 0.85 }}
+                  pathOptions={{ color: '#fff', weight: 3, opacity: 0.6, dashArray: '8 16', className: 'route-flow' }}
                 />
               )}
+              {/* Vehicle marker (visible when nav running from main map) */}
+              {vehiclePos && !navMode && <Marker position={vehiclePos} icon={vehicleIcon} />}
             </MapContainer>
 
             {/* Route status banner */}
@@ -559,13 +936,34 @@ export default function NearbyMarkets() {
                   </>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', fontWeight: 'bold' }}>
-                      <span>🚛 {routeInfo.distance}</span>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', fontWeight: 'bold', flexWrap: 'wrap' }}>
+                      <span>🚛 Road: {routeInfo.distance}</span>
                       <span style={{ color: '#22c55e' }}>⏱ {routeInfo.duration}</span>
                     </div>
+                    {(() => {
+                      const cost = transportCost(parseFloat(routeInfo.distance))
+                      const traffic = trafficAdvisory()
+                      return cost ? (
+                        <>
+                          <div style={{ fontSize: '0.72rem', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '0.4rem', textAlign: 'left' }}>
+                            <div style={{ fontWeight: '800', color: '#fbbf24', marginBottom: '0.3rem' }}>💰 Transport Cost Estimate</div>
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                              <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.45rem', borderRadius: '5px' }}>Mini ₹{cost.mini.toLocaleString()}</span>
+                              <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.45rem', borderRadius: '5px' }}>Medium ₹{cost.medium.toLocaleString()}</span>
+                              <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.45rem', borderRadius: '5px' }}>Large ₹{cost.large.toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: '0.4rem' }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: traffic.color, flexShrink: 0 }} />
+                            <span><strong style={{ color: traffic.color }}>Traffic: {traffic.level}</strong> — {traffic.tip}</span>
+                          </div>
+                        </>
+                      ) : null
+                    })()}
                     {routeInstructions.length > 0 && (
-                      <button onClick={startVoiceNavigation} style={{ background: '#3b82f6', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                        🔊 Start Voice Navigation
+                      <button onClick={startNavigation}
+                        style={{ background: 'linear-gradient(135deg,#22c55e,#3b82f6)', color: 'white', border: 'none', padding: '0.6rem 1.25rem', borderRadius: '10px', cursor: 'pointer', fontWeight: '900', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 16px rgba(34,197,94,0.45)', animation: 'pulse 2s infinite' }}>
+                        🚀 Start Navigation
                       </button>
                     )}
                   </>
