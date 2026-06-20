@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Eye, EyeOff, ArrowRight, Mail, Lock, User, Phone, Shield, Copy, ExternalLink } from 'lucide-react'
+import { X, Eye, EyeOff, ArrowRight, Mail, Lock, User, Shield } from 'lucide-react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
 import { AuthAPI, TokenStore } from '../../services/api'
@@ -16,15 +16,14 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const [loginError, setLoginError]       = useState('')
 
   // ── Register state ───────────────────────────────────────────────────────
-  const [regStep, setRegStep]         = useState(1) // 1: details  2: TOTP setup  3: verify
+  const [regStep, setRegStep]         = useState(1) // 1: details  2: verify
   const [regName, setRegName]         = useState('')
   const [regEmail, setRegEmail]       = useState('')
 
   const [regPassword, setRegPassword] = useState('')
   const [showRegPw, setShowRegPw]     = useState(false)
   const [totpCode, setTotpCode]       = useState('')
-  const [totpData, setTotpData]       = useState(null)  // { qr_data, secret, otpauth_uri, contact }
-  const [copiedSecret, setCopiedSecret] = useState(false)
+  const [totpData, setTotpData]       = useState(null)
   const [regLoading, setRegLoading]   = useState(false)
   const [regError, setRegError]       = useState('')
 
@@ -97,7 +96,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── REGISTER step 1: submit details → backend returns TOTP QR ────────────
+  // ── REGISTER step 1: submit details → backend sends email OTP ────────────
   const handleRegDetails = async (e) => {
     e.preventDefault()
     setRegError('')
@@ -110,7 +109,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     setRegLoading(true)
     try {
       const data = await AuthAPI.register(regName, regEmail, undefined, regPassword)
-      // data: { otpauth_uri, qr_data, secret, contact, channel }
+      // data: { contact, channel, method, detail }
       setTotpData(data)
       setRegStep(2)
     } catch (err) {
@@ -120,35 +119,22 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── REGISTER step 2→3: user scans QR, moves to verify step ──────────────
-  const handleContinueToVerify = () => {
-    setRegStep(3)
-    setRegError('')
-    setTotpCode('')
-  }
-
-  // ── REGISTER step 3: verify TOTP code → create account ──────────────────
-  const handleVerifyTotp = async (e) => {
+  // ── REGISTER step 2: verify email OTP code → create account ──────────────
+  const handleVerifyOtp = async (e) => {
     e.preventDefault()
     setRegError('')
     if (!totpCode || totpCode.length !== 6) {
-      setRegError('Please enter the 6-digit code from your authenticator app.'); return
+      setRegError('Please enter the 6-digit verification code.'); return
     }
     setRegLoading(true)
     try {
-      const tokens = await AuthAPI.verifyOTP('totp', totpData.contact, totpCode, 'registration')
+      const tokens = await AuthAPI.verifyOTP('email', totpData.contact, totpCode, 'registration')
       await afterLogin(tokens)
     } catch (err) {
       setRegError(err.message)
     } finally {
       setRegLoading(false)
     }
-  }
-
-  const handleCopySecret = () => {
-    navigator.clipboard.writeText(totpData?.secret || '')
-    setCopiedSecret(true)
-    setTimeout(() => setCopiedSecret(false), 2000)
   }
 
   // ── FORGOT PASSWORD ──────────────────────────────────────────────────────
@@ -312,14 +298,11 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
               <div className={`auth-step-dot ${regStep >= 1 ? 'done' : ''}`}>1</div>
               <div className="auth-step-line" />
               <div className={`auth-step-dot ${regStep >= 2 ? 'done' : ''}`}>2</div>
-              <div className="auth-step-line" />
-              <div className={`auth-step-dot ${regStep >= 3 ? 'done' : ''}`}>3</div>
             </div>
 
             <p className="auth-form-subtitle">
               {regStep === 1 && 'Create your Krishi AI account.'}
-              {regStep === 2 && 'Scan this QR code with your authenticator app.'}
-              {regStep === 3 && 'Enter the 6-digit code from your authenticator app.'}
+              {regStep === 2 && 'Enter the 6-digit code sent to your email.'}
             </p>
 
             {regError && <div className="auth-error">{regError}</div>}
@@ -358,84 +341,24 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
                 <button id="btn-reg-send-otp" type="submit" className="auth-submit-btn" disabled={regLoading}>
                   {regLoading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Setting up…</span>
-                    : <span className="auth-loading-row">Set Up Authenticator <ArrowRight size={15} /></span>}
+                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Sending OTP…</span>
+                    : <span className="auth-loading-row">Send Verification OTP <ArrowRight size={15} /></span>}
                 </button>
               </form>
             )}
 
-            {/* ── Step 2: QR Code Scan ── */}
-            {regStep === 2 && totpData && (
-              <div className="auth-form" style={{ alignItems: 'center' }}>
-                {/* QR Code */}
-                <div className="auth-qr-wrapper">
-                  <img
-                    src={totpData.qr_data}
-                    alt="TOTP QR Code"
-                    className="auth-qr-image"
-                  />
-                </div>
-
-                <div className="auth-totp-info">
-                  <p className="auth-totp-instructions">
-                    <Shield size={14} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                    Scan with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or the{' '}
-                    <a
-                      href="https://daplie.github.io/browser-authenticator/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="auth-link-btn"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                    >
-                      Browser Authenticator <ExternalLink size={11} />
-                    </a>
-                  </p>
-
-                  <div className="auth-secret-row">
-                    <span className="auth-secret-label">Manual key:</span>
-                    <code className="auth-secret-code">{totpData.secret}</code>
-                    <button
-                      type="button"
-                      className="auth-copy-btn"
-                      onClick={handleCopySecret}
-                      title="Copy secret"
-                    >
-                      {copiedSecret ? '✓' : <Copy size={13} />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  id="btn-totp-continue"
-                  type="button"
-                  className="auth-submit-btn"
-                  onClick={handleContinueToVerify}
-                  style={{ marginTop: 4 }}
-                >
-                  <span className="auth-loading-row">
-                    I've scanned it — Continue <ArrowRight size={15} />
-                  </span>
-                </button>
-
-                <button type="button" className="auth-back-btn"
-                  onClick={() => { setRegStep(1); setRegError(''); setTotpData(null) }}>
-                  ← Back to details
-                </button>
-              </div>
-            )}
-
-            {/* ── Step 3: Enter TOTP code ── */}
-            {regStep === 3 && (
-              <form onSubmit={handleVerifyTotp} className="auth-form">
+            {/* ── Step 2: Enter OTP code ── */}
+            {regStep === 2 && (
+              <form onSubmit={handleVerifyOtp} className="auth-form">
                 <div className="auth-totp-hint">
                   <Shield size={28} className="auth-totp-hint-icon" />
-                  <p>Open your authenticator app and enter the <strong>6-digit code</strong> for <em>Krishi AI</em>.</p>
+                  <p>Open your email inbox and enter the <strong>6-digit verification code</strong> for <em>Krishi AI</em>.</p>
                 </div>
 
                 <div className="auth-field">
-                  <label htmlFor="totp-code-input" className="auth-label">Authenticator Code</label>
+                  <label htmlFor="otp-code-input" className="auth-label">Verification Code</label>
                   <input
-                    id="totp-code-input"
+                    id="otp-code-input"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]{6}"
@@ -450,15 +373,15 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   />
                 </div>
 
-                <button id="btn-verify-totp" type="submit" className="auth-submit-btn" disabled={regLoading}>
+                <button id="btn-verify-otp" type="submit" className="auth-submit-btn" disabled={regLoading}>
                   {regLoading
                     ? <span className="auth-loading-row"><span className="auth-spinner" /> Verifying…</span>
                     : <span className="auth-loading-row">Verify & Create Account <ArrowRight size={15} /></span>}
                 </button>
 
                 <button type="button" className="auth-back-btn"
-                  onClick={() => { setRegStep(2); setRegError('') }} disabled={regLoading}>
-                  ← Back to QR code
+                  onClick={() => { setRegStep(1); setRegError('') }} disabled={regLoading}>
+                  ← Back to details
                 </button>
               </form>
             )}

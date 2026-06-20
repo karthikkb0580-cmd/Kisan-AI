@@ -6,7 +6,7 @@ class RegisterRequest(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     password: Optional[str] = None
-    verification_method: Optional[str] = "totp" # "totp" | "email"
+    verification_method: Optional[str] = "email"
 
 class SendOTPRequest(BaseModel):
     channel: str   # "email" | "sms"

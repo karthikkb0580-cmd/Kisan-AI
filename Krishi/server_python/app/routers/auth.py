@@ -151,24 +151,17 @@ def _pop_pending_if_valid(contact: str, code: str) -> Optional[dict]:
     return entry
 
 
-# ─── REGISTER — Step 1: validate details, setup verification (TOTP or Email OTP) ─
+# ─── REGISTER — Step 1: validate details, setup verification (Email OTP) ─────────
 
 @router.post("/register")
 async def register(req: RegisterRequest):
     """
-    Validate registration details and initiate TOTP or direct Email OTP setup.
+    Validate registration details and initiate direct Email OTP setup.
     
     Returns:
-      - method       : "totp" or "email"
+      - method       : "email"
       - contact      : the primary contact (email or phone)
-      - channel      : "totp" or "email"
-      
-      For TOTP:
-      - otpauth_uri  : the otpauth:// URI to open with browser-authenticator
-      - qr_data      : base64-encoded PNG QR code (data: URI)
-      - secret       : the raw base32 TOTP secret
-      
-      For Email OTP:
+      - channel      : "email"
       - detail       : success message
     """
     if not req.email and not req.phone:
@@ -184,46 +177,23 @@ async def register(req: RegisterRequest):
 
     primary = req.email if req.email else req.phone
     pw_hash = hash_password(req.password)
-    method  = req.verification_method if req.verification_method in ("totp", "email") else "totp"
 
-    if method == "totp":
-        # Generate a fresh TOTP secret
-        totp_secret = pyotp.random_base32()
-        otp_uri     = _make_totp_uri(totp_secret, primary)
-        qr_data     = _make_qr_base64_png(otp_uri)
+    # Direct email OTP flow
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    
+    # Store in pending
+    _store_pending(primary, req.full_name, req.email, req.phone, pw_hash, "email", code)
 
-        # Store in pending
-        _store_pending(primary, req.full_name, req.email, req.phone, pw_hash, "totp", totp_secret)
+    await send_otp("email", primary, code, "registration")
+    print(f"[Auth] Pending Email OTP registration for {primary} (code={code})")
 
-        print(f"[Auth] Pending TOTP registration for {primary}")
-        print(f"[Auth] TOTP secret (dev): {totp_secret}")
-
-        return {
-            "detail":      "Scan the QR code with your authenticator app, then enter the 6-digit code.",
-            "otpauth_uri": otp_uri,
-            "qr_data":     qr_data,
-            "secret":      totp_secret,
-            "contact":     primary,
-            "channel":     "totp",
-            "method":      "totp",
-        }
-    else:
-        # Direct email OTP flow
-        import random
-        code = f"{random.randint(100000, 999999)}"
-        
-        # Store in pending
-        _store_pending(primary, req.full_name, req.email, req.phone, pw_hash, "email", code)
-
-        await send_otp("email", primary, code, "registration")
-        print(f"[Auth] Pending Email OTP registration for {primary} (code={code})")
-
-        return {
-            "detail":      f"OTP sent to {primary}. Please check your inbox and enter the 6-digit code.",
-            "contact":     primary,
-            "channel":     "email",
-            "method":      "email",
-        }
+    return {
+        "detail":      f"OTP sent to {primary}. Please check your inbox and enter the 6-digit code.",
+        "contact":     primary,
+        "channel":     "email",
+        "method":      "email",
+    }
 
 
 # ─── OTP/SEND — resend verification code ──────────────────────────────────────
