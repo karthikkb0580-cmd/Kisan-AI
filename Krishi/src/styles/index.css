@@ -4211,6 +4211,162 @@ html.dark-theme .text-slate-600,
   color: #0f172a;
 }
 
+/* ── TOTP QR code wrapper ── */
+.auth-qr-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background: #fff;
+  border: 2.5px solid #0f172a;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0 0 #0f172a;
+  margin-bottom: 0.5rem;
+  width: fit-content;
+  align-self: center;
+}
+
+.dark-theme .auth-qr-wrapper {
+  background: #fff;
+  border-color: #22c55e;
+  box-shadow: 4px 4px 0 0 #22c55e;
+}
+
+.auth-qr-image {
+  width: 180px;
+  height: 180px;
+  display: block;
+  image-rendering: pixelated;
+}
+
+/* TOTP info block below QR */
+.auth-totp-info {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #f0fdf4;
+  border: 1.5px solid #86efac;
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+}
+
+.dark-theme .auth-totp-info {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.auth-totp-instructions {
+  font-size: 0.75rem;
+  color: #15803d;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dark-theme .auth-totp-instructions {
+  color: #4ade80;
+}
+
+/* Secret row (manual key + copy) */
+.auth-secret-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.auth-secret-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.dark-theme .auth-secret-label {
+  color: #94a3b8;
+}
+
+.auth-secret-code {
+  font-family: 'Courier New', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 6px;
+  letter-spacing: 0.1em;
+  word-break: break-all;
+  flex: 1;
+}
+
+.dark-theme .auth-secret-code {
+  background: #1e293b;
+  color: #86efac;
+}
+
+.auth-copy-btn {
+  background: none;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 6px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.auth-copy-btn:hover {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #0f172a;
+}
+
+.dark-theme .auth-copy-btn {
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+/* TOTP verify hint */
+.auth-totp-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 2px solid #22c55e;
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 0 #22c55e;
+  text-align: center;
+}
+
+.dark-theme .auth-totp-hint {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.auth-totp-hint p {
+  font-size: 0.78rem;
+  color: #15803d;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dark-theme .auth-totp-hint p {
+  color: #4ade80;
+}
+
+.auth-totp-hint-icon {
+  color: #22c55e;
+}
+
 /* ── Mobile adjustments ── */
 @media (max-width: 480px) {
   .auth-modal-box {
@@ -4221,6 +4377,11 @@ html.dark-theme .text-slate-600,
   .auth-otp-code {
     font-size: 1.6rem;
     letter-spacing: 0.15em;
+  }
+
+  .auth-qr-image {
+    width: 150px;
+    height: 150px;
   }
 }
 

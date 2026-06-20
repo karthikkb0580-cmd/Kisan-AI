@@ -57,9 +57,21 @@ def init_db():
             profile_photo_url TEXT,
             email_verified INTEGER DEFAULT 0,
             phone_verified INTEGER DEFAULT 0,
+            totp_secret TEXT,
+            totp_enabled INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Migrate: add totp columns if they don't exist (for existing DBs)
+    try:
+        execute_query(cursor, "ALTER TABLE users ADD COLUMN totp_secret TEXT")
+    except Exception:
+        pass
+    try:
+        execute_query(cursor, "ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
+    except Exception:
+        pass
     
     # Create otps table
     execute_query(cursor, """
@@ -76,21 +88,21 @@ def init_db():
     conn.commit()
     conn.close()
 
-def create_user(full_name, email=None, phone=None, password_hash=None):
+def create_user(full_name, email=None, phone=None, password_hash=None, totp_secret=None):
     conn = get_db_connection()
     cursor = get_cursor(conn)
     try:
         if IS_POSTGRES:
             cursor.execute(
-                "INSERT INTO users (full_name, email, phone, password_hash) VALUES (%s, %s, %s, %s) RETURNING id",
-                (full_name, email, phone, password_hash)
+                "INSERT INTO users (full_name, email, phone, password_hash, totp_secret) VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                (full_name, email, phone, password_hash, totp_secret)
             )
             row = cursor.fetchone()
             user_id = row['id'] if row else None
         else:
             cursor.execute(
-                "INSERT INTO users (full_name, email, phone, password_hash) VALUES (?, ?, ?, ?)",
-                (full_name, email, phone, password_hash)
+                "INSERT INTO users (full_name, email, phone, password_hash, totp_secret) VALUES (?, ?, ?, ?, ?)",
+                (full_name, email, phone, password_hash, totp_secret)
             )
             user_id = cursor.lastrowid
         conn.commit()
@@ -138,6 +150,16 @@ def update_user_verification(user_id, email_verified=None, phone_verified=None):
         execute_query(cursor, "UPDATE users SET email_verified = ? WHERE id = ?", (1 if email_verified else 0, user_id))
     if phone_verified is not None:
         execute_query(cursor, "UPDATE users SET phone_verified = ? WHERE id = ?", (1 if phone_verified else 0, user_id))
+    conn.commit()
+    conn.close()
+
+def update_user_totp(user_id, totp_secret=None, totp_enabled=None):
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    if totp_secret is not None:
+        execute_query(cursor, "UPDATE users SET totp_secret = ? WHERE id = ?", (totp_secret, user_id))
+    if totp_enabled is not None:
+        execute_query(cursor, "UPDATE users SET totp_enabled = ? WHERE id = ?", (1 if totp_enabled else 0, user_id))
     conn.commit()
     conn.close()
 

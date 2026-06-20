@@ -92,7 +92,9 @@ export class APIError extends Error {
 
 export const AuthAPI = {
   /**
-   * Register a new user. Backend sends OTP to email/phone.
+   * Register a new user.
+   * Backend saves user to DB and sends a 6-digit OTP via Gmail SMTP.
+   * OTP can be received by ANY email address.
    */
   register: (fullName, email, phone, password) =>
     apiFetch('/auth/register', {
@@ -106,9 +108,10 @@ export const AuthAPI = {
     }),
 
   /**
-   * Send OTP (channel = 'email' | 'sms', purpose = 'login' | 'registration' etc.)
+   * Send / resend a fresh OTP via Gmail SMTP — works for ANY email address.
+   * channel = 'email' | 'sms', purpose = 'registration' | 'login' | 'verify_secondary'
    */
-  sendOTP: (channel, contact, purpose = 'login') =>
+  sendOTP: (channel, contact, purpose = 'registration') =>
     apiFetch('/auth/otp/send', {
       method: 'POST',
       body: JSON.stringify({ channel, contact, purpose }),

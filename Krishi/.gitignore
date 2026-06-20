@@ -34,3 +34,8 @@ dist-ssr
 *.db
 *.db-journal
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/

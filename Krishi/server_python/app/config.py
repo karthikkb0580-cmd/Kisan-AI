@@ -25,8 +25,9 @@ JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TTL = 60          # minutes
 REFRESH_TTL = 7           # days
 
-# Resend API
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+# Email — Gmail SMTP (works for ALL email addresses, no domain restriction)
+# Set GMAIL_USER and GMAIL_APP_PASSWORD in .env
+# See: https://myaccount.google.com/apppasswords
 
 # Upload Directory
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
