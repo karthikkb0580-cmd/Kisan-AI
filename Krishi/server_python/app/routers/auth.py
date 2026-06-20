@@ -1,26 +1,23 @@
 """
 auth.py — Krishi AI Authentication
 ====================================
-Registration flow using TOTP (browser-authenticator / Google Authenticator protocol):
+Authentication flow:
 
-  Step 1 — POST /register:
-      • Validates details, generates a TOTP secret
-      • Returns { otpauth_uri, secret, qr_svg } — NOT saved to DB yet
+  Registration:
+    POST /register:
+        • Validates name, email, password
+        • Creates the user immediately in the database
+        • Returns JWT tokens + user profile
 
-  Step 2 — POST /otp/verify  (purpose="registration"):
-      • Verifies the 6-digit TOTP code against the pending secret
-      • Only NOW creates the user in the database
-      • Returns JWT tokens
+  Login:
+    POST /login/password:
+        • Email + password login
+        • Returns JWT tokens
 
-All other endpoints (login, password reset, token refresh, /me) are unchanged.
+  All other endpoints (OTP, token refresh, /me, password reset) are unchanged.
 """
 
-import base64
-import io
-import pyotp
-import qrcode
-import qrcode.image.svg
-
+import random
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
@@ -28,6 +25,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from app import database
 from app.schemas import (
     RegisterRequest,
+    RegisterSendOTPRequest,
+    RegisterConfirmOTPRequest,
     SendOTPRequest,
     VerifyOTPRequest,
     LoginPasswordRequest,
@@ -49,17 +48,21 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 # ─── Seed demo users ──────────────────────────────────────────────────────────
 
-if not database.get_user_by_email("demo@krishi.ai"):
+_demo = database.get_user_by_email("demo@krishi.ai")
+if not _demo:
     demo_pw_hash = hash_password("password")
     u_id = database.create_user(
         full_name="Dr. Demo Farmer",
         email="demo@krishi.ai",
-        phone="+919876543210",
+        phone=None,          # no phone to avoid conflicts
         password_hash=demo_pw_hash
     )
     if u_id:
         database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
         print("[DB] Demo user seeded: demo@krishi.ai / password")
+else:
+    # Always keep the password hash fresh on startup
+    database.update_user_profile(user_id=_demo["id"], password_hash=hash_password("password"))
 
 if not database.get_user_by_email("opkarthik2005@gmail.com"):
     user_pw_hash = hash_password("password")
@@ -74,210 +77,152 @@ if not database.get_user_by_email("opkarthik2005@gmail.com"):
         print("[DB] Seeded user: opkarthik2005@gmail.com / password")
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# ─── REGISTER STEP 1 — validate details & send OTP to email ──────────────────
 
-def _make_totp_uri(secret: str, email: str) -> str:
-    """Build the otpauth:// URI compatible with Google Authenticator & browser-authenticator."""
-    return pyotp.totp.TOTP(secret).provisioning_uri(
-        name=email,
-        issuer_name="Krishi AI"
+@router.post("/register/send-otp")
+async def register_send_otp(req: RegisterSendOTPRequest):
+    """
+    Step 1 of OTP-gated registration.
+    Validates the inputs, stores pending data, and sends a 6-digit OTP to
+    the supplied email address via Gmail SMTP.
+    """
+    if not req.full_name or len(req.full_name.strip()) < 2:
+        raise HTTPException(400, "Full name must be at least 2 characters long")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters long")
+    if database.get_user_by_email(req.email):
+        raise HTTPException(400, "An account with this email already exists")
+
+    pw_hash = hash_password(req.password)
+    database.upsert_pending_registration(
+        email=req.email,
+        full_name=req.full_name.strip(),
+        password_hash=pw_hash,
     )
 
+    code = f"{random.randint(100000, 999999)}"
+    database.save_otp(req.email, code, "registration")
+    await send_otp("email", req.email, code, "registration")
 
-def _make_qr_svg(uri: str) -> str:
-    """Return an inline SVG string of the QR code for the given URI."""
-    factory = qrcode.image.svg.SvgPathImage
-    img = qrcode.make(uri, image_factory=factory, box_size=8)
-    buf = io.BytesIO()
-    img.save(buf)
-    return buf.getvalue().decode("utf-8")
+    return {"detail": f"A 6-digit verification code has been sent to {req.email}. It expires in 5 minutes."}
 
 
-def _make_qr_base64_png(uri: str) -> str:
-    """Return a base64-encoded PNG QR code (data URI) for the given URI."""
-    img = qrcode.make(uri)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{b64}"
+# ─── REGISTER STEP 2 — verify OTP & create account ───────────────────────────
 
+@router.post("/register/confirm-otp")
+def register_confirm_otp(req: RegisterConfirmOTPRequest):
+    """
+    Step 2 of OTP-gated registration.
+    Verifies the OTP, creates the user account, and returns JWT tokens.
+    """
+    pending = database.get_pending_registration(req.email)
+    if not pending:
+        raise HTTPException(400, "No pending registration found for this email. Please start over.")
 
-# ─── Pending registrations (in-memory, TTL = 15 min) ─────────────────────────
-# Keyed by email/phone.
-# User is NOT written to the database until the verification code is verified.
-_pending: dict[str, dict] = {}
+    ok = database.verify_otp(req.email, req.code, "registration")
+    if not ok:
+        raise HTTPException(400, "Invalid or expired OTP — please check your email and try again.")
 
+    # Guard against duplicate (race condition)
+    if database.get_user_by_email(req.email):
+        database.delete_pending_registration(req.email)
+        raise HTTPException(400, "An account with this email already exists")
 
-def _store_pending(contact: str, full_name: str, email: Optional[str],
-                   phone: Optional[str], pw_hash: Optional[str], method: str, secret_or_code: str) -> None:
-    _pending[contact] = {
-        "full_name":      full_name,
-        "email":          email,
-        "phone":          phone,
-        "pw_hash":        pw_hash,
-        "method":         method,  # "totp" or "email"
-        "secret_or_code": secret_or_code,
-        "expires_at":     datetime.utcnow() + timedelta(minutes=15),
+    user_id = database.create_user(
+        full_name=pending["full_name"],
+        email=req.email,
+        phone=None,
+        password_hash=pending["password_hash"],
+    )
+    if not user_id:
+        raise HTTPException(500, "Account creation failed — please try again")
+
+    database.update_user_verification(user_id=user_id, email_verified=True, phone_verified=False)
+    database.delete_pending_registration(req.email)
+
+    user   = database.get_user_by_id(user_id)
+    tokens = create_tokens(user_id)
+    print(f"[DB] ✅ New user registered via OTP: {req.email} (id={user_id})")
+    return {
+        **tokens,
+        "user": {
+            "id":             user["id"],
+            "full_name":      user["full_name"],
+            "email":          user["email"] or "",
+            "phone":          user["phone"] or "",
+            "email_verified": bool(user["email_verified"]),
+            "phone_verified": bool(user["phone_verified"]),
+            "created_at":     user["created_at"],
+        },
     }
 
 
-def _get_pending(contact: str) -> Optional[dict]:
-    entry = _pending.get(contact)
-    if not entry:
-        return None
-    if datetime.utcnow() > entry["expires_at"]:
-        _pending.pop(contact, None)
-        return None
-    return entry
-
-
-def _pop_pending_if_valid(contact: str, code: str) -> Optional[dict]:
-    """Pop the pending registration and return it only if the verification code is valid."""
-    entry = _get_pending(contact)
-    if not entry:
-        return None
-    
-    method = entry.get("method", "totp")
-    if method == "totp":
-        totp = pyotp.TOTP(entry["secret_or_code"])
-        # valid_window=1 allows 30s drift on either side
-        if not totp.verify(code, valid_window=1):
-            return None
-    else:
-        # Direct email verification code
-        if entry["secret_or_code"] != code:
-            return None
-
-    _pending.pop(contact, None)
-    return entry
-
-
-# ─── REGISTER — Step 1: validate details, setup verification (Email OTP) ─────────
+# ─── REGISTER (legacy single-step — kept for backward compat) ─────────────────
 
 @router.post("/register")
-async def register(req: RegisterRequest):
+def register(req: RegisterRequest):
     """
-    Validate registration details and initiate direct Email OTP setup.
-    
-    Returns:
-      - method       : "email"
-      - contact      : the primary contact (email or phone)
-      - channel      : "email"
-      - detail       : success message
+    Register a new user with full name, email, and password (no OTP verification).
     """
-    if not req.email and not req.phone:
-        raise HTTPException(400, "Provide at least one of email or phone")
-    if not req.password or len(req.password) < 8:
-        raise HTTPException(400, "Password must be at least 8 characters long")
+    if not req.email:
+        raise HTTPException(400, "Email address is required")
+    if not req.full_name or len(req.full_name.strip()) < 2:
+        raise HTTPException(400, "Full name must be at least 2 characters long")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters long")
 
-    # Reject duplicates
-    if req.email and database.get_user_by_email(req.email):
+    # Reject duplicate emails
+    if database.get_user_by_email(req.email):
         raise HTTPException(400, "An account with this email already exists")
     if req.phone and database.get_user_by_phone(req.phone):
         raise HTTPException(400, "An account with this mobile number already exists")
 
-    primary = req.email if req.email else req.phone
     pw_hash = hash_password(req.password)
+    user_id = database.create_user(
+        full_name=req.full_name.strip(),
+        email=req.email,
+        phone=req.phone,
+        password_hash=pw_hash,
+    )
+    if not user_id:
+        raise HTTPException(500, "Account creation failed — please try again")
 
-    # Direct email OTP flow
-    import random
-    code = f"{random.randint(100000, 999999)}"
-    
-    # Store in pending
-    _store_pending(primary, req.full_name, req.email, req.phone, pw_hash, "email", code)
+    database.update_user_verification(user_id=user_id, email_verified=True, phone_verified=False)
 
-    await send_otp("email", primary, code, "registration")
-    print(f"[Auth] Pending Email OTP registration for {primary} (code={code})")
-
+    user   = database.get_user_by_id(user_id)
+    tokens = create_tokens(user_id)
+    print(f"[DB] ✅ New user registered (legacy): {req.email} (id={user_id})")
     return {
-        "detail":      f"OTP sent to {primary}. Please check your inbox and enter the 6-digit code.",
-        "contact":     primary,
-        "channel":     "email",
-        "method":      "email",
+        **tokens,
+        "user": {
+            "id":             user["id"],
+            "full_name":      user["full_name"],
+            "email":          user["email"] or "",
+            "phone":          user["phone"] or "",
+            "email_verified": bool(user["email_verified"]),
+            "phone_verified": bool(user["phone_verified"]),
+            "created_at":     user["created_at"],
+        },
     }
 
 
-# ─── OTP/SEND — resend verification code ──────────────────────────────────────
+# ─── OTP/SEND — send a fresh OTP (login / password-reset / verify_secondary) ──
 
 @router.post("/otp/send")
 async def otp_send(req: SendOTPRequest):
     """
-    Re-send a fresh email/SMS OTP.
-    For TOTP-based registration, use /register again to get a fresh QR code.
+    Send or re-send a 6-digit OTP for login, password reset, or secondary contact verification.
     """
-    code = f"{__import__('random').randint(100000, 999999)}"
-
-    if req.purpose == "registration":
-        entry = _pending.get(req.contact)
-        if not entry:
-            raise HTTPException(400, "No pending registration found. Please register again.")
-        if entry.get("method") == "totp":
-            raise HTTPException(400, "TOTP registration uses authenticator apps. Call /register again to get a new QR code.")
-        
-        # Resend email OTP code
-        _store_pending(
-            req.contact, entry["full_name"], entry["email"],
-            entry["phone"], entry["pw_hash"], "email", code
-        )
-        await send_otp(req.channel, req.contact, code, req.purpose)
-    else:
-        database.save_otp(req.contact, code, req.purpose)
-        await send_otp(req.channel, req.contact, code, req.purpose)
-
-    return {"detail": f"A new verification code has been sent to {req.contact}."}
+    code = f"{random.randint(100000, 999999)}"
+    database.save_otp(req.contact, code, req.purpose)
+    await send_otp(req.channel, req.contact, code, req.purpose)
+    return {"detail": f"A verification code has been sent to {req.contact}."}
 
 
-# ─── OTP/VERIFY — verify code → create user in DB → return tokens ─────────────
+# ─── OTP/VERIFY — verify OTP code ─────────────────────────────────────────────
 
 @router.post("/otp/verify")
 async def otp_verify(req: VerifyOTPRequest):
-    if req.purpose == "registration":
-        # Pop from pending if valid (handles both TOTP and email OTP)
-        entry = _pop_pending_if_valid(req.contact, req.code)
-        if not entry:
-            raise HTTPException(400, "Invalid or expired code — please try again")
-
-        # ── Only NOW create the user in the database ──────────────────────────
-        totp_secret = entry["secret_or_code"] if entry["method"] == "totp" else None
-        totp_enabled = 1 if entry["method"] == "totp" else 0
-
-        user_id = database.create_user(
-            full_name=entry["full_name"],
-            email=entry["email"],
-            phone=entry["phone"],
-            password_hash=entry["pw_hash"],
-            totp_secret=totp_secret,
-        )
-        if not user_id:
-            raise HTTPException(500, "Account creation failed — email or phone may already be registered")
-
-        # Mark as verified
-        database.update_user_verification(
-            user_id=user_id,
-            email_verified=(req.channel in ("email", "totp")),
-            phone_verified=(req.channel == "sms"),
-        )
-        if totp_enabled:
-            database.update_user_totp(user_id=user_id, totp_enabled=True)
-
-        user   = database.get_user_by_id(user_id)
-        tokens = create_tokens(user_id)
-        print(f"[DB] ✅ New user created after {entry['method'].upper()} verification: {req.contact} (id={user_id})")
-        return {
-            **tokens,
-            "user": {
-                "id":             user["id"],
-                "full_name":      user["full_name"],
-                "email":          user["email"] or "",
-                "phone":          user["phone"] or "",
-                "email_verified": bool(user["email_verified"]),
-                "phone_verified": bool(user["phone_verified"]),
-                "totp_enabled":   bool(user.get("totp_enabled", 0)),
-                "created_at":     user["created_at"],
-            },
-        }
-
-    # ── Non-registration OTP (login, verify_secondary, etc.) ─────────────────
     ok = database.verify_otp(req.contact, req.code, req.purpose)
     if not ok:
         raise HTTPException(400, "Invalid or expired code — please try again")
@@ -288,15 +233,28 @@ async def otp_verify(req: VerifyOTPRequest):
     return {"detail": "OTP verified."}
 
 
-# ─── LOGIN — password ─────────────────────────────────────────────────────────
+# ─── LOGIN — email + password ─────────────────────────────────────────────────
 
 @router.post("/login/password")
 def login_password(req: LoginPasswordRequest):
     user = (database.get_user_by_email(req.identifier)
             or database.get_user_by_phone(req.identifier))
     if not user or not verify_password(req.password, user.get("password_hash") or ""):
-        raise HTTPException(401, "Incorrect email/phone or password")
-    return create_tokens(user["id"])
+        raise HTTPException(401, "Incorrect email or password")
+
+    tokens = create_tokens(user["id"])
+    return {
+        **tokens,
+        "user": {
+            "id":             user["id"],
+            "full_name":      user["full_name"],
+            "email":          user["email"] or "",
+            "phone":          user["phone"] or "",
+            "email_verified": bool(user["email_verified"]),
+            "phone_verified": bool(user["phone_verified"]),
+            "created_at":     user["created_at"],
+        },
+    }
 
 
 # ─── LOGIN — OTP (passwordless) ───────────────────────────────────────────────
@@ -321,10 +279,22 @@ def login_otp(req: LoginOTPRequest):
         )
         user = database.get_user_by_id(uid)
 
-    return create_tokens(user["id"])
+    tokens = create_tokens(user["id"])
+    return {
+        **tokens,
+        "user": {
+            "id":             user["id"],
+            "full_name":      user["full_name"],
+            "email":          user["email"] or "",
+            "phone":          user["phone"] or "",
+            "email_verified": bool(user["email_verified"]),
+            "phone_verified": bool(user["phone_verified"]),
+            "created_at":     user["created_at"],
+        },
+    }
 
 
-# ─── LOGIN — Firebase OTP (verified by client) ───────────────────────────────
+# ─── LOGIN — Firebase OTP (phone, verified by client) ────────────────────────
 
 @router.post("/login/firebase")
 def login_firebase(req: FirebaseLoginRequest):
@@ -348,7 +318,6 @@ def login_firebase(req: FirebaseLoginRequest):
             "phone":          user["phone"] or "",
             "email_verified": bool(user["email_verified"]),
             "phone_verified": bool(user["phone_verified"]),
-            "totp_enabled":   bool(user.get("totp_enabled", 0)),
             "created_at":     user["created_at"],
         }
     }
@@ -369,7 +338,6 @@ def get_me(user_id: int = Depends(get_current_user_id)):
         "profile_photo_url": user.get("profile_photo_url") or "",
         "email_verified":    bool(user["email_verified"]),
         "phone_verified":    bool(user["phone_verified"]),
-        "totp_enabled":      bool(user.get("totp_enabled", 0)),
         "created_at":        user["created_at"],
     }
 
@@ -402,7 +370,6 @@ async def password_reset_request(req: PasswordResetRequest):
             or database.get_user_by_phone(req.contact))
     if not user:
         raise HTTPException(404, "No account found for this contact")
-    import random
     code = f"{random.randint(100000, 999999)}"
     database.save_otp(req.contact, code, "password_reset")
     await send_otp(req.channel, req.contact, code, "password_reset")

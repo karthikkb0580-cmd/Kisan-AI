@@ -92,9 +92,27 @@ export class APIError extends Error {
 
 export const AuthAPI = {
   /**
-   * Register a new user.
-   * Backend saves user to DB and sends a 6-digit OTP via Gmail SMTP.
-   * OTP can be received by ANY email address.
+   * Step 1 — Validate registration details and send a 6-digit OTP to the email.
+   * Returns { detail: "..." } on success.
+   */
+  registerSendOTP: (fullName, email, password) =>
+    apiFetch('/auth/register/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ full_name: fullName, email, password }),
+    }),
+
+  /**
+   * Step 2 — Verify OTP, create the account, return { access_token, refresh_token, user }.
+   */
+  registerConfirmOTP: (email, code) =>
+    apiFetch('/auth/register/confirm-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }),
+
+  /**
+   * Register a new user with name, email and password (legacy single-step).
+   * Creates the account immediately and returns { access_token, refresh_token, user }.
    */
   register: (fullName, email, phone, password) =>
     apiFetch('/auth/register', {
@@ -139,7 +157,7 @@ export const AuthAPI = {
     }),
 
   /**
-   * Password login — returns { access_token, refresh_token }
+   * Email + password login — returns { access_token, refresh_token, user }
    */
   loginPassword: (identifier, password) =>
     apiFetch('/auth/login/password', {

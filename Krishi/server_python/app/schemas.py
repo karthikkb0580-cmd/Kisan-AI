@@ -3,10 +3,22 @@ from pydantic import BaseModel, EmailStr, Field
 
 class RegisterRequest(BaseModel):
     full_name: str = Field(..., min_length=2)
-    email: Optional[EmailStr] = None
+    email: EmailStr
     phone: Optional[str] = None
-    password: Optional[str] = None
-    verification_method: Optional[str] = "email"
+    password: str = Field(..., min_length=6)
+
+# ── OTP-gated registration (2-step) ──────────────────────────────────────────
+
+class RegisterSendOTPRequest(BaseModel):
+    """Step 1 — validate details & send a verification OTP to email."""
+    full_name: str = Field(..., min_length=2)
+    email: EmailStr
+    password: str = Field(..., min_length=6)
+
+class RegisterConfirmOTPRequest(BaseModel):
+    """Step 2 — verify OTP, create the account, return JWT tokens."""
+    email: EmailStr
+    code: str
 
 class SendOTPRequest(BaseModel):
     channel: str   # "email" | "sms"

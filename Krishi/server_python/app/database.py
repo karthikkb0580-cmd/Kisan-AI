@@ -84,7 +84,18 @@ def init_db():
             verified INTEGER DEFAULT 0
         )
     """)
-    
+
+    # Pending registrations — holds data until OTP is confirmed
+    execute_query(cursor, """
+        CREATE TABLE IF NOT EXISTS pending_registrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            full_name TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            expires_at TIMESTAMP NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -226,3 +237,45 @@ def verify_otp(contact, code, purpose):
     
     conn.close()
     return False
+
+
+# ── Pending Registration helpers ──────────────────────────────────────────────
+
+def upsert_pending_registration(email: str, full_name: str, password_hash: str, ttl_seconds: int = 600):
+    """Store or replace a pending registration row (expires in ttl_seconds)."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    expires_at = (datetime.now() + timedelta(seconds=ttl_seconds)).isoformat()
+    # Delete any existing row for this email first
+    execute_query(cursor, "DELETE FROM pending_registrations WHERE email = ?", (email,))
+    execute_query(
+        cursor,
+        "INSERT INTO pending_registrations (email, full_name, password_hash, expires_at) VALUES (?, ?, ?, ?)",
+        (email, full_name, password_hash, expires_at),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_pending_registration(email: str):
+    """Return non-expired pending registration row or None."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    now = datetime.now().isoformat()
+    execute_query(
+        cursor,
+        "SELECT * FROM pending_registrations WHERE email = ? AND expires_at > ?",
+        (email, now),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_pending_registration(email: str):
+    """Remove the pending registration row after successful account creation."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    execute_query(cursor, "DELETE FROM pending_registrations WHERE email = ?", (email,))
+    conn.commit()
+    conn.close()
