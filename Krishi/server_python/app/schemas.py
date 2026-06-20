@@ -28,6 +28,10 @@ class LoginOTPRequest(BaseModel):
     contact: str
     code: str
 
+class FirebaseLoginRequest(BaseModel):
+    phone: str
+    full_name: Optional[str] = None
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

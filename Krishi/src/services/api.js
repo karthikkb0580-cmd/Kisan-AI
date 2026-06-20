@@ -108,6 +108,18 @@ export const AuthAPI = {
     }),
 
   /**
+   * Log in or register a user after successful Firebase phone OTP verification.
+   */
+  loginFirebase: (phone, fullName) =>
+    apiFetch('/auth/login/firebase', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone,
+        full_name: fullName || undefined,
+      }),
+    }),
+
+  /**
    * Send / resend a fresh OTP via Gmail SMTP — works for ANY email address.
    * channel = 'email' | 'sms', purpose = 'registration' | 'login' | 'verify_secondary'
    */

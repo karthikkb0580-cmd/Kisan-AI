@@ -32,6 +32,7 @@ from app.schemas import (
     VerifyOTPRequest,
     LoginPasswordRequest,
     LoginOTPRequest,
+    FirebaseLoginRequest,
     RefreshRequest,
     PasswordResetRequest,
     PasswordResetConfirm
@@ -321,6 +322,36 @@ def login_otp(req: LoginOTPRequest):
         user = database.get_user_by_id(uid)
 
     return create_tokens(user["id"])
+
+
+# ─── LOGIN — Firebase OTP (verified by client) ───────────────────────────────
+
+@router.post("/login/firebase")
+def login_firebase(req: FirebaseLoginRequest):
+    phone = req.phone.replace(" ", "")
+    user = database.get_user_by_phone(phone)
+    if not user:
+        name = req.full_name or f"Farmer {phone[-4:]}"
+        user_id = database.create_user(full_name=name, phone=phone)
+        if not user_id:
+            raise HTTPException(500, "Failed to create user in database")
+        database.update_user_verification(user_id=user_id, phone_verified=True)
+        user = database.get_user_by_id(user_id)
+
+    tokens = create_tokens(user["id"])
+    return {
+        **tokens,
+        "user": {
+            "id":             user["id"],
+            "full_name":      user["full_name"],
+            "email":          user["email"] or "",
+            "phone":          user["phone"] or "",
+            "email_verified": bool(user["email_verified"]),
+            "phone_verified": bool(user["phone_verified"]),
+            "totp_enabled":   bool(user.get("totp_enabled", 0)),
+            "created_at":     user["created_at"],
+        }
+    }
 
 
 # ─── CURRENT USER ─────────────────────────────────────────────────────────────
