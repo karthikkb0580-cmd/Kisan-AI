@@ -45,8 +45,8 @@ def execute_query(cursor, sql, params=None):
 def init_db():
     conn = get_db_connection()
     cursor = get_cursor(conn)
-    
-    # Create users table
+
+    # Users table
     execute_query(cursor, """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,21 +59,23 @@ def init_db():
             phone_verified INTEGER DEFAULT 0,
             totp_secret TEXT,
             totp_enabled INTEGER DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
-    # Migrate: add totp columns if they don't exist (for existing DBs)
-    try:
-        execute_query(cursor, "ALTER TABLE users ADD COLUMN totp_secret TEXT")
-    except Exception:
-        pass
-    try:
-        execute_query(cursor, "ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0")
-    except Exception:
-        pass
-    
-    # Create otps table
+    # Migrate: silently add columns added after initial schema
+    for col_sql in [
+        "ALTER TABLE users ADD COLUMN totp_secret TEXT",
+        "ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+    ]:
+        try:
+            execute_query(cursor, col_sql)
+        except Exception:
+            pass
+
+    # Legacy OTPs table (kept for backward compat)
     execute_query(cursor, """
         CREATE TABLE IF NOT EXISTS otps (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +87,38 @@ def init_db():
         )
     """)
 
-    # Pending registrations — holds data until OTP is confirmed
+    # ── SECURE OTPs table ─────────────────────────────────────────────────
+    # Production table: stores Argon2-hashed OTPs, tracks attempts & IP
+    execute_query(cursor, """
+        CREATE TABLE IF NOT EXISTS secure_otps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            email TEXT NOT NULL,
+            otp_hash TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            attempts INTEGER DEFAULT 0,
+            used INTEGER DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ── Rate limit log table ──────────────────────────────────────────────
+    execute_query(cursor, """
+        CREATE TABLE IF NOT EXISTS rate_limit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            ip_address TEXT,
+            event_type TEXT NOT NULL,
+            details TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # ── Pending registrations (unchanged) ─────────────────────────────────
     execute_query(cursor, """
         CREATE TABLE IF NOT EXISTS pending_registrations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,3 +312,121 @@ def delete_pending_registration(email: str):
     execute_query(cursor, "DELETE FROM pending_registrations WHERE email = ?", (email,))
     conn.commit()
     conn.close()
+
+
+# ── Secure OTP helpers ────────────────────────────────────────────────────────
+
+def create_secure_otp(email: str, otp_hash: str, purpose: str,
+                      ip_address: str = "", user_agent: str = "",
+                      expires_in_seconds: int = 300,
+                      user_id: int = None) -> int:
+    """
+    Invalidate any existing OTPs for this email+purpose, then create a new one.
+    Returns the new OTP row id.
+    """
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+
+    # Invalidate all previous OTPs for this email + purpose (one-time use, replace)
+    execute_query(cursor,
+        "UPDATE secure_otps SET used = 1 WHERE email = ? AND purpose = ? AND used = 0",
+        (email, purpose),
+    )
+
+    expires_at = (datetime.now() + timedelta(seconds=expires_in_seconds)).isoformat()
+
+    if IS_POSTGRES:
+        cursor.execute(
+            """INSERT INTO secure_otps
+               (user_id, email, otp_hash, purpose, ip_address, user_agent, expires_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+            (user_id, email, otp_hash, purpose, ip_address, user_agent, expires_at),
+        )
+        row = cursor.fetchone()
+        new_id = row["id"] if row else None
+    else:
+        cursor.execute(
+            """INSERT INTO secure_otps
+               (user_id, email, otp_hash, purpose, ip_address, user_agent, expires_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, email, otp_hash, purpose, ip_address, user_agent, expires_at),
+        )
+        new_id = cursor.lastrowid
+
+    conn.commit()
+    conn.close()
+    return new_id
+
+
+def get_active_secure_otp(email: str, purpose: str) -> dict | None:
+    """Return the most recent non-expired, non-used OTP row for this email+purpose."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    now = datetime.now().isoformat()
+    execute_query(
+        cursor,
+        """SELECT * FROM secure_otps
+           WHERE email = ? AND purpose = ? AND used = 0 AND expires_at > ?
+           ORDER BY created_at DESC LIMIT 1""",
+        (email, purpose, now),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def increment_otp_attempt(otp_id: int) -> int:
+    """Increment attempts counter; return new attempt count."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    execute_query(cursor,
+        "UPDATE secure_otps SET attempts = attempts + 1 WHERE id = ?",
+        (otp_id,),
+    )
+    execute_query(cursor, "SELECT attempts FROM secure_otps WHERE id = ?", (otp_id,))
+    row = cursor.fetchone()
+    conn.commit()
+    conn.close()
+    return dict(row).get("attempts", 1) if row else 1
+
+
+def mark_otp_used(otp_id: int) -> None:
+    """Mark OTP as used (one-time use enforcement)."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    execute_query(cursor,
+        "UPDATE secure_otps SET used = 1 WHERE id = ?", (otp_id,))
+    conn.commit()
+    conn.close()
+
+
+def purge_expired_otps() -> None:
+    """Delete all expired OTPs — call periodically for hygiene."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    now = datetime.now().isoformat()
+    execute_query(cursor,
+        "DELETE FROM secure_otps WHERE expires_at < ? OR used = 1", (now,))
+    conn.commit()
+    conn.close()
+
+
+# ── Rate limit log helpers ────────────────────────────────────────────────────
+
+def log_rate_limit_event(event_type: str, email: str = "", ip_address: str = "",
+                         details: str = "") -> None:
+    """Persist a rate-limit / suspicious-activity event to the DB."""
+    conn = get_db_connection()
+    cursor = get_cursor(conn)
+    try:
+        execute_query(cursor,
+            """INSERT INTO rate_limit_log (email, ip_address, event_type, details)
+               VALUES (?, ?, ?, ?)""",
+            (email, ip_address, event_type, details),
+        )
+        conn.commit()
+    except Exception:
+        pass  # Never crash the app over audit logging
+    finally:
+        conn.close()
+
