@@ -6,9 +6,11 @@ from app import database
 database.init_db()
 pw = hash_password('password')
 
+# Generic seed users — no personal/private email or phone numbers here.
+# Add your own test accounts locally; do NOT commit real credentials.
 users_to_seed = [
-    ('Dr. Demo Farmer', 'demo@krishi.ai', '+919876543210'),
-    ('Karthik',         'opkarthik2005@gmail.com', '+919876543211'),
+    ('Dr. Demo Farmer', 'demo@krishi.ai',  None),
+    ('Dev User',        'dev@krishi.ai',   None),
 ]
 
 for full_name, email, phone in users_to_seed:

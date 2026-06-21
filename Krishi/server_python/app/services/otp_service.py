@@ -17,10 +17,24 @@ import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 
-# ── Gmail SMTP credentials (from .env) ────────────────────────────────────────
-GMAIL_USER         = os.getenv("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "")
+# ── Ensure .env is loaded even if this module is imported before main.py ───────
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _env_path = Path(__file__).resolve().parents[2] / ".env"  # server_python/.env
+    if _env_path.exists():
+        _load_dotenv(dotenv_path=str(_env_path), override=False)
+except ImportError:
+    pass  # python-dotenv not installed; rely on OS env vars
+
+
+def _gmail_credentials() -> tuple[str, str]:
+    """Read credentials at call-time so they are always current after dotenv loads."""
+    return (
+        os.getenv("GMAIL_USER", ""),
+        os.getenv("GMAIL_APP_PASSWORD", ""),
+    )
 
 
 # ── HTML email template ───────────────────────────────────────────────────────
@@ -72,32 +86,46 @@ async def _send_via_gmail(to_email: str, subject: str, html_body: str) -> bool:
     Send email via Gmail SMTP with an App Password.
     Works for ALL recipient email addresses — no domain restrictions.
     """
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD or GMAIL_USER == "your_gmail@gmail.com":
+    gmail_user, gmail_app_password = _gmail_credentials()
+
+    if not gmail_user or not gmail_app_password or gmail_user == "your_gmail@gmail.com":
         print("[Gmail SMTP] WARNING: GMAIL_USER / GMAIL_APP_PASSWORD not configured in .env")
         print("[Gmail SMTP] OTP is printed to the terminal above (dev mode).")
         return False
 
+    print(f"[Gmail SMTP] Attempting to send OTP email to: {to_email}")
+    print(f"[Gmail SMTP] Sending from: {gmail_user}")
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"]    = f"Krishi AI <{GMAIL_USER}>"
+        msg["From"]    = f"Krishi AI <{gmail_user}>"
         msg["To"]      = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+            server.login(gmail_user, gmail_app_password)
+            server.sendmail(gmail_user, to_email, msg.as_string())
 
-        print(f"[Gmail SMTP] Email delivered to {to_email}")
+        print(f"[Gmail SMTP] ✅ Email delivered successfully to {to_email}")
         return True
 
-    except smtplib.SMTPAuthenticationError:
-        print("[Gmail SMTP] Authentication failed — verify GMAIL_USER and GMAIL_APP_PASSWORD in .env")
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[Gmail SMTP] ❌ Authentication failed: {e}")
+        print("[Gmail SMTP] Verify GMAIL_USER and GMAIL_APP_PASSWORD in .env")
         print("[Gmail SMTP] Ensure you use a 16-char App Password, not your regular Gmail password.")
         return False
 
+    except smtplib.SMTPRecipientsRefused as e:
+        print(f"[Gmail SMTP] ❌ Recipient refused {to_email}: {e}")
+        return False
+
+    except smtplib.SMTPException as e:
+        print(f"[Gmail SMTP] ❌ SMTP error sending to {to_email}: {e}")
+        return False
+
     except Exception as exc:
-        print(f"[Gmail SMTP] Error sending to {to_email}: {exc}")
+        print(f"[Gmail SMTP] ❌ Unexpected error sending to {to_email}: {type(exc).__name__}: {exc}")
         return False
 
 

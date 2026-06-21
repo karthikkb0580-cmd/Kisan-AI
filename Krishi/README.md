@@ -26,15 +26,16 @@ The backend of Krishi AI has been migrated from Node.js to **FastAPI (Python 3.1
 
 ### The "OTP Not Sending" Root Cause
 If you noticed that OTP verification codes were not being delivered during local testing with the old Node.js backend, it was due to a strict **Resend API Security Restriction**:
-- On the free/testing tier of Resend, you are **only permitted to send emails to your registered account owner address** (`opkarthik2005@gmail.com`).
+- On the free/testing tier of Resend, you are **only permitted to send emails to your registered account owner address**.
 - Trying to sign up with any other email address would result in a `403 Forbidden` API rejection.
 - The Node.js server crashed or returned `502 Bad Gateway` when this happened, halting the entire user registration flow.
 
-### The FastAPI Developer Solution
-Our Python backend introduces a **Graceful Sandbox Fallback**:
-- When the Resend API rejects an email (due to testing sandbox limitations, missing variables, or unverified domains), **the server intercepts the warning gracefully and prints the generated OTP inside a high-visibility console box on your backend terminal!**
-- The server then returns a `200 OK` status with a developer notification, allowing you to instantly grab the code from your server console and proceed with testing.
-- *Real email delivery will still succeed automatically if you register using the owner email or verify a custom domain in your Resend account dashboard.*
+### The FastAPI Gmail SMTP Solution
+Our Python backend uses **Gmail SMTP with App Passwords** for universal delivery:
+- OTPs are delivered via Gmail SMTP and work for **every email address worldwide** — not limited to a single owner address.
+- Configure `GMAIL_USER` and `GMAIL_APP_PASSWORD` in `server_python/.env` (see `.env.example` for instructions).
+- During development without SMTP configured, the generated OTP is printed to the backend terminal so you can test locally without email setup.
+
 
 ---
 
