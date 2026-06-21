@@ -29,12 +29,41 @@ except ImportError:
     pass  # python-dotenv not installed; rely on OS env vars
 
 
-def _gmail_credentials() -> tuple[str, str]:
-    """Read credentials at call-time so they are always current after dotenv loads."""
-    return (
-        os.getenv("GMAIL_USER", ""),
-        os.getenv("GMAIL_APP_PASSWORD", ""),
-    )
+def _email_credentials() -> dict:
+    """Read email credentials from env."""
+    provider = os.getenv("EMAIL_PROVIDER", "").lower()
+    
+    # Auto-detect provider if not explicitly set
+    if not provider:
+        if os.getenv("GMAIL_USER"):
+            provider = "gmail"
+        elif os.getenv("SMTP_USER"):
+            provider = "smtp"
+        else:
+            provider = "gmail"
+
+    creds = {
+        "provider": provider,
+        "gmail_user": os.getenv("GMAIL_USER", ""),
+        "gmail_app_password": os.getenv("GMAIL_APP_PASSWORD", ""),
+        "smtp_host": os.getenv("SMTP_HOST", ""),
+        "smtp_port": int(os.getenv("SMTP_PORT", "587") if os.getenv("SMTP_PORT") else 587),
+        "smtp_user": os.getenv("SMTP_USER", ""),
+        "smtp_password": os.getenv("SMTP_PASSWORD", ""),
+        "smtp_from": os.getenv("SMTP_FROM", ""),
+        "smtp_use_ssl": os.getenv("SMTP_USE_SSL", "False").lower() in ("true", "1", "yes"),
+    }
+
+    # Preconfigure Brevo defaults
+    if provider == "brevo":
+        if not creds["smtp_host"]:
+            creds["smtp_host"] = "smtp-relay.brevo.com"
+        if not creds["smtp_port"]:
+            creds["smtp_port"] = 587
+        if not creds["smtp_from"]:
+            creds["smtp_from"] = creds["smtp_user"]
+
+    return creds
 
 
 # ── HTML email template ───────────────────────────────────────────────────────
@@ -79,53 +108,74 @@ def _build_html(purpose: str, code: str) -> str:
     )
 
 
-# ── Gmail SMTP sender ─────────────────────────────────────────────────────────
+# ── Generic SMTP / Brevo / Gmail sender ──────────────────────────────────────
 
-async def _send_via_gmail(to_email: str, subject: str, html_body: str) -> bool:
+async def _send_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
     """
-    Send email via Gmail SMTP with an App Password.
-    Works for ALL recipient email addresses — no domain restrictions.
+    Send email via SMTP (supporting Gmail, Brevo, or custom SMTP configurations).
     """
-    gmail_user, gmail_app_password = _gmail_credentials()
+    creds = _email_credentials()
+    provider = creds["provider"]
 
-    if not gmail_user or not gmail_app_password or gmail_user == "your_gmail@gmail.com":
-        print("[Gmail SMTP] WARNING: GMAIL_USER / GMAIL_APP_PASSWORD not configured in .env")
-        print("[Gmail SMTP] OTP is printed to the terminal above (dev mode).")
+    if provider == "gmail":
+        gmail_user = creds["gmail_user"]
+        gmail_password = creds["gmail_app_password"].replace(" ", "")
+        if not gmail_user or not gmail_password or gmail_user == "your_gmail@gmail.com":
+            print("[SMTP] WARNING: GMAIL_USER / GMAIL_APP_PASSWORD not configured in .env")
+            print("[SMTP] OTP is printed to the terminal (dev mode).")
+            return False
+        
+        host = "smtp.gmail.com"
+        port = 465
+        user = gmail_user
+        password = gmail_password
+        from_email = f"Krishi AI <{gmail_user}>"
+        use_ssl = True
+    elif provider in ("brevo", "smtp"):
+        host = creds["smtp_host"]
+        port = creds["smtp_port"]
+        user = creds["smtp_user"]
+        password = creds["smtp_password"]
+        from_email = creds["smtp_from"] or user
+        use_ssl = creds["smtp_use_ssl"]
+        
+        if not host or not user or not password:
+            print(f"[SMTP] WARNING: {provider.upper()} SMTP credentials not configured in .env")
+            print("[SMTP] OTP is printed to the terminal (dev mode).")
+            return False
+    else:
+        print(f"[SMTP] WARNING: Unknown email provider: {provider}")
         return False
 
-    print(f"[Gmail SMTP] Attempting to send OTP email to: {to_email}")
-    print(f"[Gmail SMTP] Sending from: {gmail_user}")
+    print(f"[SMTP] Attempting to send OTP email to: {to_email} via {provider.upper()}")
+    print(f"[SMTP] Sending from: {from_email}")
 
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"]    = f"Krishi AI <{gmail_user}>"
+        msg["From"]    = from_email
         msg["To"]      = to_email
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(gmail_user, gmail_app_password)
-            server.sendmail(gmail_user, to_email, msg.as_string())
+        if use_ssl:
+            with smtplib.SMTP_SSL(host, port) as server:
+                server.login(user, password)
+                server.sendmail(from_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(host, port) as server:
+                server.starttls()
+                server.login(user, password)
+                server.sendmail(from_email, to_email, msg.as_string())
 
-        print(f"[Gmail SMTP] ✅ Email delivered successfully to {to_email}")
+        print(f"[SMTP] ✅ Email delivered successfully to {to_email}")
         return True
 
     except smtplib.SMTPAuthenticationError as e:
-        print(f"[Gmail SMTP] ❌ Authentication failed: {e}")
-        print("[Gmail SMTP] Verify GMAIL_USER and GMAIL_APP_PASSWORD in .env")
-        print("[Gmail SMTP] Ensure you use a 16-char App Password, not your regular Gmail password.")
+        print(f"[SMTP] ❌ Authentication failed for {provider.upper()}: {e}")
+        print("[SMTP] Please check your credentials in .env")
         return False
-
-    except smtplib.SMTPRecipientsRefused as e:
-        print(f"[Gmail SMTP] ❌ Recipient refused {to_email}: {e}")
-        return False
-
-    except smtplib.SMTPException as e:
-        print(f"[Gmail SMTP] ❌ SMTP error sending to {to_email}: {e}")
-        return False
-
     except Exception as exc:
-        print(f"[Gmail SMTP] ❌ Unexpected error sending to {to_email}: {type(exc).__name__}: {exc}")
+        print(f"[SMTP] ❌ Error sending to {to_email} via {provider.upper()}: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -133,7 +183,7 @@ async def _send_via_gmail(to_email: str, subject: str, html_body: str) -> bool:
 
 async def send_otp(channel: str, contact: str, code: str, purpose: str) -> None:
     """
-    Sends OTP via Gmail SMTP (any email) with terminal fallback for dev mode.
+    Sends OTP via configured SMTP provider with terminal fallback for dev mode.
 
     channel : "email" | "sms"
     contact : email address or phone number
@@ -157,6 +207,6 @@ async def send_otp(channel: str, contact: str, code: str, purpose: str) -> None:
     subject   = f"Your Krishi AI OTP: {code}"
     html_body = _build_html(purpose, code)
 
-    sent = await _send_via_gmail(contact, subject, html_body)
+    sent = await _send_via_smtp(contact, subject, html_body)
     if not sent:
-        print(f"[OTP] Gmail not configured — code is visible in the terminal above.")
+        print(f"[OTP] SMTP delivery failed — code is visible in the terminal above.")
