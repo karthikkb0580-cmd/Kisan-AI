@@ -152,7 +152,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── REGISTER STEP 1 — send OTP ────────────────────────────────────────────
+  // ── REGISTER — single step ────────────────────────────────────────────────
   const handleRegisterSend = async (e) => {
     e.preventDefault()
     setError(''); setSuccess('')
@@ -163,13 +163,15 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
     setLoading(true)
     try {
-      await AuthAPI.registerSendOTP(name.trim(), email.trim(), password)
-      setRegStep('otp')
-      setOtp('')
-      startCountdown()
-      setSuccess('')
+      // Directly register without OTP
+      const data = await AuthAPI.register(name.trim(), email.trim(), null, password)
+      TokenStore.set(data.access_token, data.refresh_token)
+      applyUser(data.user || await AuthAPI.getMe())
+      
+      setRegStep('done')
+      setTimeout(() => onSuccess('dashboard'), 1400)
     } catch (err) {
-      setError(err.message || 'Failed to send OTP. Please try again.')
+      setError(err.message || 'Registration failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -310,10 +312,10 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
             </>
           )}
 
-          {/* ── REGISTER — STEP 1: form ── */}
+          {/* ── REGISTER — form ── */}
           {tab === 'register' && regStep === 'form' && (
             <>
-              <p className="auth-form-subtitle">Create your Krishi AI account. We'll verify your email with an OTP.</p>
+              <p className="auth-form-subtitle">Create your Krishi AI account.</p>
               {error   && <div className="auth-error">{error}</div>}
 
               <form onSubmit={handleRegisterSend} className="auth-form" noValidate>
@@ -375,8 +377,8 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
                 <button id="btn-register-submit" type="submit" className="auth-submit-btn" disabled={loading}>
                   {loading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Sending OTP…</span>
-                    : <span className="auth-loading-row">Send Verification Code <ArrowRight size={15} /></span>}
+                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Creating Account…</span>
+                    : <span className="auth-loading-row">Create Account <ArrowRight size={15} /></span>}
                 </button>
               </form>
 
