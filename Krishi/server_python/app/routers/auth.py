@@ -48,33 +48,34 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 # ─── Seed demo users ──────────────────────────────────────────────────────────
 
-_demo = database.get_user_by_email("demo@krishi.ai")
-if not _demo:
-    demo_pw_hash = hash_password("password")
-    u_id = database.create_user(
-        full_name="Dr. Demo Farmer",
-        email="demo@krishi.ai",
-        phone=None,          # no phone to avoid conflicts
-        password_hash=demo_pw_hash
-    )
-    if u_id:
-        database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
-        print("[DB] Demo user seeded: demo@krishi.ai / password")
-else:
-    # Always keep the password hash fresh on startup
-    database.update_user_profile(user_id=_demo["id"], password_hash=hash_password("password"))
+def seed_users():
+    _demo = database.get_user_by_email("demo@krishi.ai")
+    if not _demo:
+        demo_pw_hash = hash_password("password")
+        u_id = database.create_user(
+            full_name="Dr. Demo Farmer",
+            email="demo@krishi.ai",
+            phone=None,          # no phone to avoid conflicts
+            password_hash=demo_pw_hash
+        )
+        if u_id:
+            database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
+            print("[DB] Demo user seeded: demo@krishi.ai / password")
+    else:
+        # Always keep the password hash fresh on startup
+        database.update_user_profile(user_id=_demo["id"], password_hash=hash_password("password"))
 
-if not database.get_user_by_email("dev@krishi.ai"):
-    user_pw_hash = hash_password("password")
-    u_id = database.create_user(
-        full_name="Dev User",
-        email="dev@krishi.ai",
-        phone=None,
-        password_hash=user_pw_hash
-    )
-    if u_id:
-        database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
-        print("[DB] Seeded dev user: dev@krishi.ai / password")
+    if not database.get_user_by_email("dev@krishi.ai"):
+        user_pw_hash = hash_password("password")
+        u_id = database.create_user(
+            full_name="Dev User",
+            email="dev@krishi.ai",
+            phone=None,
+            password_hash=user_pw_hash
+        )
+        if u_id:
+            database.update_user_verification(user_id=u_id, email_verified=True, phone_verified=True)
+            print("[DB] Seeded dev user: dev@krishi.ai / password")
 
 
 # ─── REGISTER STEP 1 — validate details & send OTP to email ──────────────────
