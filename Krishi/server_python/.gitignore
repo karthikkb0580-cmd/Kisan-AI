@@ -1,0 +1,25 @@
+# Ignore Python compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore environment variables
+.env
+.env.*
+!.env.example
+
+# Ignore SQLite databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.db3
+*.db-journal
+*.db.bak
+*.bak
+
+# Ignore uploads directory contents (if any, though usually you keep the dir empty)
+uploads/*
+!uploads/.gitkeep
+
+# Ignore PyTest cache
+.pytest_cache/

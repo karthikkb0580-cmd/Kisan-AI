@@ -2,6 +2,7 @@ import random
 from datetime import datetime
 from typing import Optional, List, Dict
 from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File, Header
+from pydantic import BaseModel
 
 from app.schemas import (
     AIChatRequest,
@@ -11,8 +12,23 @@ from app.schemas import (
 )
 from app.config import _agro_replies, _prices
 from app.services.ml_service import run_disease_diagnosis, run_market_analysis
+from app.services.mandi_service import get_crop_price, get_multiple_crop_prices, get_mandi_list
 
 router = APIRouter(prefix="/api/v1/ai", tags=["AI Agricultural Features"])
+
+
+# ── Request schemas ───────────────────────────────────────────────────────────
+
+class MandiPriceRequest(BaseModel):
+    crop: str
+    state: str = ""
+
+class MandiBulkRequest(BaseModel):
+    crops: List[str]
+    state: str = ""
+
+
+# ── Existing endpoints ────────────────────────────────────────────────────────
 
 @router.post("/chat")
 def ai_chat(req: AIChatRequest):
@@ -81,3 +97,73 @@ def ai_weather_advisory(req: AIWeatherRequest):
         "humidity":    "78%",
         "timestamp":   datetime.utcnow().isoformat(),
     }
+
+
+# ── NEW: Real-Time Govt Mandi Price Endpoints ─────────────────────────────────
+
+@router.post("/mandi/price")
+async def mandi_price(req: MandiPriceRequest):
+    """
+    Fetch real-time mandi price for a single crop from data.gov.in Agmarknet.
+    Falls back to MSP-based estimate if API is unavailable.
+
+    Returns: modal price, min/max range, 7-day history, MSP, trend, source mandi.
+    """
+    if not req.crop or len(req.crop.strip()) < 2:
+        raise HTTPException(400, "Crop name must be at least 2 characters.")
+
+    result = await get_crop_price(crop_name=req.crop.strip(), state=req.state.strip())
+    return {**result, "timestamp": datetime.utcnow().isoformat()}
+
+
+@router.post("/mandi/prices/bulk")
+async def mandi_prices_bulk(req: MandiBulkRequest):
+    """
+    Fetch real-time mandi prices for multiple crops concurrently.
+    Perfect for populating the full market price matrix.
+
+    Body: { "crops": ["wheat", "rice", "onion"], "state": "Punjab" }
+    """
+    if not req.crops:
+        raise HTTPException(400, "At least one crop name is required.")
+    if len(req.crops) > 20:
+        raise HTTPException(400, "Maximum 20 crops per request.")
+
+    results = await get_multiple_crop_prices(
+        crops=[c.strip() for c in req.crops if c.strip()],
+        state=req.state.strip(),
+    )
+    return {
+        "prices":    results,
+        "count":     len(results),
+        "state":     req.state or "India (All States)",
+        "source":    "Agmarknet — data.gov.in",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@router.get("/mandi/markets")
+async def mandi_markets(crop: str, state: str = "", limit: int = 15):
+    """
+    Return a list of individual mandis with live prices for a crop.
+    Used to show per-mandi price variation on the market map.
+
+    Query params: ?crop=wheat&state=Punjab&limit=15
+    """
+    if not crop or len(crop.strip()) < 2:
+        raise HTTPException(400, "crop query param is required.")
+
+    mandis = await get_mandi_list(
+        crop_name=crop.strip(),
+        state=state.strip(),
+        limit=min(limit, 50),
+    )
+    return {
+        "crop":      crop.title(),
+        "state":     state or "India",
+        "mandis":    mandis,
+        "count":     len(mandis),
+        "source":    "Agmarknet — data.gov.in",
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
