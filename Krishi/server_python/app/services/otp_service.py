@@ -112,8 +112,65 @@ def _build_html(purpose: str, code: str) -> str:
 
 async def _send_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
     """
-    Send email via SMTP (supporting Gmail, Brevo, or custom SMTP configurations).
+    Send email via Resend API or SMTP (Gmail, Brevo, custom).
+
+    Provider priority:
+      1. RESEND_API_KEY  — preferred if set (works on all cloud hosts)
+      2. Gmail SMTP      — EMAIL_PROVIDER=gmail + GMAIL_USER + GMAIL_APP_PASSWORD
+      3. Custom SMTP     — EMAIL_PROVIDER=smtp  + SMTP_HOST/USER/PASSWORD
     """
+    resend_api_key = os.getenv("RESEND_API_KEY", "").strip()
+    provider = os.getenv("EMAIL_PROVIDER", "").lower()
+
+    # Resend takes priority when API key is present — cloud hosts often block SMTP port 465
+    use_resend = bool(resend_api_key) and (
+        provider in ("resend", "")
+        or not os.getenv("GMAIL_USER")
+        or not os.getenv("SMTP_USER")
+    )
+    # Downgrade to SMTP only when the chosen provider is fully configured
+    if resend_api_key and provider == "gmail" and os.getenv("GMAIL_USER") and os.getenv("GMAIL_APP_PASSWORD"):
+        use_resend = False
+    if resend_api_key and provider in ("smtp", "brevo") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASSWORD"):
+        use_resend = False
+    if provider == "resend":
+        use_resend = True  # always honour explicit choice
+
+    if use_resend:
+        if not resend_api_key:
+            print("[Email] WARNING: RESEND_API_KEY not configured in .env")
+            return False
+
+        from_addr = os.getenv("RESEND_FROM") or os.getenv("SMTP_FROM") or "onboarding@resend.dev"
+        from_name = os.getenv("SMTP_FROM_NAME") or "Krishi AI"
+
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {resend_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "from": f"{from_name} <{from_addr}>",
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_body,
+                    },
+                    timeout=15.0
+                )
+            if response.status_code in (200, 201, 202):
+                print(f"[Email] ✅ OTP email sent to {to_email} via RESEND API")
+                return True
+            else:
+                print(f"[Email] ❌ Resend API error: HTTP {response.status_code} — {response.text}")
+                return False
+        except Exception as exc:
+            print(f"[Email] ❌ Resend exception for {to_email}: {type(exc).__name__}: {exc}")
+            return False
+
     creds = _email_credentials()
     provider = creds["provider"]
 
