@@ -5,5 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: './',
+  // For GitHub Pages: use the repo name as the base path
+  // For local dev and Render: './' works fine
+  base: process.env.GITHUB_PAGES === 'true' ? '/Kisan-AI/' : './',
 })
