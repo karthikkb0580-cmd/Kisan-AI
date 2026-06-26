@@ -361,7 +361,7 @@ function MapLoading() {
 }
 
 export default function Dashboard() {
-  const { user, setUser, setView, theme, language } = useFarmvestStore()
+  const { user, setUser, setView, theme, language, logout } = useFarmvestStore()
   const t = (key, fallback) => {
     return translations[language]?.[key] || translations['en']?.[key] || fallback || key
   }
@@ -621,7 +621,7 @@ export default function Dashboard() {
             </button>
           ))}
         </nav>
-        <button className="db-logout-btn" onClick={() => setView('home')}>
+        <button className="db-logout-btn" onClick={logout}>
           <span>🚪</span> Log Out
         </button>
       </aside>
