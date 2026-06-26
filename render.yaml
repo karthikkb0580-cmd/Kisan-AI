@@ -18,26 +18,15 @@ services:
         sync: false
         description: "Optional: PostgreSQL URL (e.g. from Supabase/Neon) for persistent storage. Leave blank to use SQLite."
 
-      # ── Email / OTP Delivery ──────────────────────────────────────────────────
-      # RECOMMENDED: Use Resend (free 3000 emails/month, works on all cloud hosts)
-      # Sign up at https://resend.com → API Keys → Create key
-      - key: RESEND_API_KEY
-        sync: false
-        description: "Resend API key for sending OTP emails (recommended for cloud hosting). Get free key at resend.com"
-
-      - key: RESEND_FROM
-        sync: false
-        description: "From address for Resend emails. Use 'onboarding@resend.dev' for testing, or your verified domain email."
-
-      # ALTERNATIVE: Use Gmail SMTP (requires Google App Password)
+      # ── Email / OTP Delivery via Gmail SMTP ──────────────────────────────────
       - key: EMAIL_PROVIDER
-        sync: false
-        description: "Email provider: 'resend' (recommended) | 'gmail' | 'smtp'. Leave blank to auto-detect from keys."
+        value: gmail
+        description: "Email provider — set to gmail (uses GMAIL_USER + GMAIL_APP_PASSWORD below)"
 
       - key: GMAIL_USER
         sync: false
-        description: "Gmail address for SMTP. Requires EMAIL_PROVIDER=gmail and GMAIL_APP_PASSWORD."
+        description: "Your Gmail address — e.g. opkarthik2005@gmail.com"
 
       - key: GMAIL_APP_PASSWORD
         sync: false
-        description: "16-char Gmail App Password (NOT your Gmail password). Create at myaccount.google.com/apppasswords"
+        description: "16-char Gmail App Password (NOT your regular Gmail password). Create at myaccount.google.com/apppasswords"
