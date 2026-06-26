@@ -1,20 +1,19 @@
 """
-otp_email.py — Professional HTML email templates for OTP delivery
-==================================================================
-• Inlined CSS (email-client safe)
-• Includes expiry warning
-• Prevents header injection by sanitizing subject/recipient
-• Supports Gmail SMTP and Brevo SMTP out of the box
+otp_email.py — Async OTP email delivery for Krishi AI
+=======================================================
+Uses fastapi-mail (aiosmtplib) — proper async SMTP, no event-loop blocking.
+
+Provider priority:
+  1. RESEND_API_KEY  → Resend HTTP API   (best for cloud, uses port 443)
+  2. GMAIL_USER      → Gmail SMTP 587    (fastapi-mail / aiosmtplib async)
+  3. SMTP_USER       → Custom SMTP relay (fastapi-mail / aiosmtplib async)
 """
 
 from __future__ import annotations
 
 import os
 import re
-import smtplib
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from pathlib import Path
 
 try:
@@ -35,15 +34,15 @@ def _safe(value: str) -> str:
     return _HEADER_INJECTION_RE.sub("", str(value))
 
 
-# ── HTML template ─────────────────────────────────────────────────────────────
+# ── HTML template ──────────────────────────────────────────────────────────────
 
 def build_otp_email_html(otp: str, purpose: str, expiry_minutes: int = 5) -> str:
     label = purpose.replace("_", " ").title()
     purpose_map = {
-        "registration":    ("Verify your email address", "Complete your Krishi AI registration"),
-        "login":           ("Login verification code", "Sign in to your Krishi AI account"),
-        "password_reset":  ("Reset your password", "You requested a password reset"),
-        "verify_secondary":("Verify contact", "Verify your contact information"),
+        "registration":    ("Verify your email address",  "Complete your Krishi AI registration"),
+        "login":           ("Login verification code",    "Sign in to your Krishi AI account"),
+        "password_reset":  ("Reset your password",        "You requested a password reset"),
+        "verify_secondary":("Verify contact",             "Verify your contact information"),
     }
     title, subtitle = purpose_map.get(purpose, (f"{label} code", f"Your {label} OTP"))
 
@@ -71,7 +70,7 @@ def build_otp_email_html(otp: str, purpose: str, expiry_minutes: int = 5) -> str
           <!-- OTP Box -->
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr><td align="center" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);
-                   border-radius:16px;border:2px solid #86efac;padding:28px 16px;margin-bottom:4px;">
+                   border-radius:16px;border:2px solid #86efac;padding:28px 16px;">
               <p style="margin:0;font-size:3rem;font-weight:900;letter-spacing:18px;color:#15803d;
                          font-family:'Courier New',monospace;">{otp}</p>
             </td></tr>
@@ -88,8 +87,7 @@ def build_otp_email_html(otp: str, purpose: str, expiry_minutes: int = 5) -> str
           </table>
 
           <p style="margin:20px 0 0;color:#94a3b8;font-size:0.78rem;line-height:1.5;">
-            If you did not request this code, you can safely ignore this email. 
-            Your account is not at risk unless you enter this code on a site you did not visit.
+            If you did not request this code, you can safely ignore this email.
           </p>
         </td></tr>
 
@@ -109,154 +107,144 @@ def build_otp_email_html(otp: str, purpose: str, expiry_minutes: int = 5) -> str
 </html>"""
 
 
-# ── SMTP configuration ────────────────────────────────────────────────────────
+# ── Provider 1: Resend HTTP API ────────────────────────────────────────────────
 
-def _get_smtp_config() -> dict:
+async def _send_via_resend(to_email: str, subject: str, html_body: str) -> bool:
+    """Send via Resend REST API (HTTPS port 443 — never blocked on any cloud host)."""
+    api_key = os.getenv("RESEND_API_KEY", "").strip()
+    if not api_key:
+        return False
+
+    from_addr = (os.getenv("RESEND_FROM") or
+                 os.getenv("SMTP_FROM") or
+                 "onboarding@resend.dev")
+    from_name = os.getenv("SMTP_FROM_NAME") or "Krishi AI"
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type":  "application/json",
+                },
+                json={
+                    "from":    f"{from_name} <{from_addr}>",
+                    "to":      [to_email],
+                    "subject": subject,
+                    "html":    html_body,
+                },
+            )
+        if resp.status_code in (200, 201, 202):
+            logger.info("[Email] ✅ Sent to %s via Resend", to_email)
+            return True
+        logger.error("[Email] ❌ Resend HTTP %s: %s", resp.status_code, resp.text[:300])
+        return False
+    except Exception as exc:
+        logger.error("[Email] ❌ Resend exception: %s — %s", type(exc).__name__, exc)
+        return False
+
+
+# ── Provider 2: Async SMTP via fastapi-mail / aiosmtplib ──────────────────────
+
+async def _send_via_fastapi_mail(to_email: str, subject: str, html_body: str) -> bool:
+    """
+    Send via fastapi-mail (uses aiosmtplib — fully async, no event-loop blocking).
+    Supports Gmail port 587 STARTTLS and any custom SMTP relay.
+    """
+    try:
+        from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+    except ImportError:
+        logger.error("[Email] fastapi-mail not installed — run: pip install fastapi-mail")
+        return False
+
     provider = os.getenv("EMAIL_PROVIDER", "").lower()
-    if not provider:
-        provider = "gmail" if os.getenv("GMAIL_USER") else "smtp" if os.getenv("SMTP_USER") else "gmail"
 
-    if provider == "gmail":
-        return {
-            "host": "smtp.gmail.com",
-            "port": 587,
-            "user": os.getenv("GMAIL_USER", ""),
-            "password": os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", ""),
-            "from_name": "Krishi AI",
-            "from_addr": os.getenv("GMAIL_USER", ""),
-            "use_ssl": False,  # port 587 uses STARTTLS, not SSL
-            "provider": "gmail",
-        }
-    else:  # brevo or generic smtp
-        user = os.getenv("SMTP_USER", "")
-        return {
-            "host": os.getenv("SMTP_HOST", "smtp-relay.brevo.com"),
-            "port": int(os.getenv("SMTP_PORT", "587")),
-            "user": user,
-            "password": os.getenv("SMTP_PASSWORD", ""),
-            "from_name": os.getenv("SMTP_FROM_NAME", "Krishi AI"),
-            "from_addr": os.getenv("SMTP_FROM", user),
-            "use_ssl": os.getenv("SMTP_USE_SSL", "false").lower() in ("true", "1", "yes"),
-            "provider": provider,
-        }
+    # Determine SMTP settings
+    if provider in ("gmail", "") and os.getenv("GMAIL_USER"):
+        mail_user     = os.getenv("GMAIL_USER", "")
+        mail_password = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "")
+        mail_server   = "smtp.gmail.com"
+        mail_port     = 587
+        mail_from     = mail_user
+        starttls      = True
+        ssl_tls       = False
+    elif os.getenv("SMTP_USER"):
+        mail_user     = os.getenv("SMTP_USER", "")
+        mail_password = os.getenv("SMTP_PASSWORD", "")
+        mail_server   = os.getenv("SMTP_HOST", "smtp-relay.brevo.com")
+        mail_port     = int(os.getenv("SMTP_PORT", "587"))
+        mail_from     = os.getenv("SMTP_FROM") or mail_user
+        use_ssl_env   = os.getenv("SMTP_USE_SSL", "false").lower() in ("true", "1", "yes")
+        starttls      = not use_ssl_env
+        ssl_tls       = use_ssl_env
+    else:
+        logger.warning("[Email] No SMTP credentials configured (GMAIL_USER or SMTP_USER)")
+        return False
+
+    if not mail_user or not mail_password:
+        logger.warning("[Email] SMTP credentials are empty — check GMAIL_USER/GMAIL_APP_PASSWORD in env")
+        return False
+
+    try:
+        conf = ConnectionConfig(
+            MAIL_USERNAME   = mail_user,
+            MAIL_PASSWORD   = mail_password,
+            MAIL_FROM       = mail_from,
+            MAIL_FROM_NAME  = os.getenv("SMTP_FROM_NAME", "Krishi AI"),
+            MAIL_PORT       = mail_port,
+            MAIL_SERVER     = mail_server,
+            MAIL_STARTTLS   = starttls,
+            MAIL_SSL_TLS    = ssl_tls,
+            USE_CREDENTIALS = True,
+            VALIDATE_CERTS  = True,
+        )
+
+        message = MessageSchema(
+            subject    = subject,
+            recipients = [to_email],
+            body       = html_body,
+            subtype    = MessageType.html,
+        )
+
+        fm = FastMail(conf)
+        await fm.send_message(message)
+        logger.info("[Email] ✅ Sent to %s via fastapi-mail (%s:%s)", to_email, mail_server, mail_port)
+        return True
+
+    except Exception as exc:
+        logger.error("[Email] ❌ fastapi-mail error sending to %s: %s — %s",
+                     to_email, type(exc).__name__, exc)
+        return False
 
 
-# ── Sender ────────────────────────────────────────────────────────────────────
+# ── Public API ─────────────────────────────────────────────────────────────────
 
 async def send_otp_email(to_email: str, otp: str, purpose: str,
                          expiry_minutes: int = 5) -> bool:
     """
-    Send a production-quality OTP email. Returns True on success.
-    Prevents header injection, logs all errors.
-
-    Provider priority:
-      1. RESEND_API_KEY  — if set, always preferred (works on all cloud hosts)
-      2. Gmail SMTP      — EMAIL_PROVIDER=gmail + GMAIL_USER + GMAIL_APP_PASSWORD
-      3. Custom SMTP     — EMAIL_PROVIDER=smtp  + SMTP_HOST/USER/PASSWORD
+    Send OTP email. Tries Resend first (best for cloud), then fastapi-mail SMTP.
+    Returns True on success.
     """
-    resend_api_key = os.getenv("RESEND_API_KEY", "").strip()
-    provider = os.getenv("EMAIL_PROVIDER", "").lower()
-
-    # RESEND takes priority if the API key is set — it works on every cloud host
-    # including Render, Railway, Fly.io where outbound SMTP port 465 is often blocked.
-    use_resend = bool(resend_api_key) and (
-        provider in ("resend", "")          # explicitly chosen, or no provider set
-        or not os.getenv("GMAIL_USER")       # Gmail chosen but user not configured
-        or not os.getenv("SMTP_USER")        # SMTP chosen but user not configured
-    )
-    # If Gmail is fully configured, prefer it over Resend (unless provider=resend)
-    if resend_api_key and provider == "gmail" and os.getenv("GMAIL_USER") and os.getenv("GMAIL_APP_PASSWORD"):
-        use_resend = False
-    if resend_api_key and provider in ("smtp", "brevo") and os.getenv("SMTP_USER") and os.getenv("SMTP_PASSWORD"):
-        use_resend = False
-    if provider == "resend":
-        use_resend = True  # always honour explicit choice
-
-    # Guard against header injection
     safe_to   = _safe(to_email)
     safe_subj = _safe(f"Krishi AI — Your OTP: {otp}")
     html_body = build_otp_email_html(otp, purpose, expiry_minutes)
 
-    # ── Resend HTTP API (recommended for cloud deployments) ─────────────────────
-    if use_resend:
-        if not resend_api_key:
-            logger.warning("[Email] RESEND_API_KEY not set — cannot send via Resend")
-            return False
+    # ── Try Resend first (HTTPS, never blocked on any cloud platform) ──────────
+    resend_key = os.getenv("RESEND_API_KEY", "").strip()
+    if resend_key:
+        ok = await _send_via_resend(safe_to, safe_subj, html_body)
+        if ok:
+            return True
+        logger.warning("[Email] Resend failed — falling back to SMTP")
 
-        from_addr = os.getenv("RESEND_FROM") or os.getenv("SMTP_FROM") or "onboarding@resend.dev"
-        from_name = os.getenv("SMTP_FROM_NAME") or "Krishi AI"
-
-        try:
-            import httpx
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.resend.com/emails",
-                    headers={
-                        "Authorization": f"Bearer {resend_api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "from": f"{from_name} <{from_addr}>",
-                        "to": [safe_to],
-                        "subject": safe_subj,
-                        "html": html_body,
-                    },
-                    timeout=15.0
-                )
-            if response.status_code in (200, 201, 202):
-                logger.info("[Email] ✅ OTP email sent to %s via RESEND API", to_email)
-                return True
-            else:
-                logger.error(
-                    "[Email] ❌ Resend API failed: HTTP %s — %s",
-                    response.status_code, response.text
-                )
-                return False
-        except Exception as exc:
-            logger.error("[Email] ❌ Resend exception for %s: %s — %s",
-                         to_email, type(exc).__name__, exc)
-            return False
-
-    # ── Gmail / custom SMTP fallback ─────────────────────────────────────────────
-    cfg = _get_smtp_config()
-    if not cfg["user"] or not cfg["password"]:
-        logger.warning(
-            "[Email] %s credentials not set — OTP printed to terminal only (dev mode).",
-            cfg["provider"].upper()
-        )
-        return False
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = safe_subj
-    msg["From"]    = f"{cfg['from_name']} <{_safe(cfg['from_addr'])}>"
-    msg["To"]      = safe_to
-    msg["X-Mailer"] = "KrishiAI/2.0"
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-    try:
-        if cfg["use_ssl"]:
-            server = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=15)
-        else:
-            server = smtplib.SMTP(cfg["host"], cfg["port"], timeout=15)
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
-
-        server.login(cfg["user"], cfg["password"])
-        server.sendmail(cfg["from_addr"], safe_to, msg.as_string())
-        server.quit()
-
-        logger.info("[Email] ✅ OTP email sent to %s via %s", to_email, cfg["provider"].upper())
+    # ── Fall back to async SMTP (fastapi-mail) ─────────────────────────────────
+    ok = await _send_via_fastapi_mail(safe_to, safe_subj, html_body)
+    if ok:
         return True
 
-    except smtplib.SMTPAuthenticationError as exc:
-        logger.error("[Email] ❌ SMTP auth failed (%s): %s", cfg["provider"].upper(), exc)
-    except smtplib.SMTPRecipientsRefused as exc:
-        logger.error("[Email] ❌ Recipient refused %s: %s", to_email, exc)
-    except smtplib.SMTPException as exc:
-        logger.error("[Email] ❌ SMTP error sending to %s: %s", to_email, exc)
-    except Exception as exc:
-        logger.error("[Email] ❌ Unexpected error sending to %s: %s — %s",
-                     to_email, type(exc).__name__, exc)
-
+    logger.warning(
+        "[Email] ❌ All providers failed for %s — OTP=%s (check Render env vars)", to_email, otp
+    )
     return False
