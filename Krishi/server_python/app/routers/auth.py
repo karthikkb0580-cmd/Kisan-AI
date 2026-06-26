@@ -170,11 +170,14 @@ async def register_send_otp(req: RegisterSendOTPRequest, request: Request):
     if len(req.password) < 6:
         raise HTTPException(400, "Password must be at least 6 characters.")
 
-    # Email enumeration prevention: don't reveal whether email exists
+    # Return clear error if email is already registered
     if database.get_user_by_email(req.email):
-        # Silently succeed — never reveal email existence
         logger.info("[Auth] Register attempt on existing email=%s ip=%s", req.email, ip)
-        return {"detail": _GENERIC_OTP_MSG}
+        raise HTTPException(
+            400,
+            "This email address is already registered. Please sign in instead, "
+            "or use a different email to create a new account."
+        )
 
     # Stage the registration
     database.upsert_pending_registration(

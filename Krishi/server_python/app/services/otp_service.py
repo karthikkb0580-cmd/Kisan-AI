@@ -183,11 +183,11 @@ async def _send_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
             return False
         
         host = "smtp.gmail.com"
-        port = 465
+        port = 587  # STARTTLS — works on all cloud hosts including Render
         user = gmail_user
         password = gmail_password
         from_email = f"Krishi AI <{gmail_user}>"
-        use_ssl = True
+        use_ssl = False
     elif provider in ("brevo", "smtp"):
         host = creds["smtp_host"]
         port = creds["smtp_port"]
@@ -215,12 +215,15 @@ async def _send_via_smtp(to_email: str, subject: str, html_body: str) -> bool:
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         if use_ssl:
-            with smtplib.SMTP_SSL(host, port) as server:
+            with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+                server.ehlo()
                 server.login(user, password)
                 server.sendmail(from_email, to_email, msg.as_string())
         else:
-            with smtplib.SMTP(host, port) as server:
+            with smtplib.SMTP(host, port, timeout=15) as server:
+                server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(user, password)
                 server.sendmail(from_email, to_email, msg.as_string())
 

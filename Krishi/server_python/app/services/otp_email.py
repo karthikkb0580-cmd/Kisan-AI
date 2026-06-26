@@ -119,12 +119,12 @@ def _get_smtp_config() -> dict:
     if provider == "gmail":
         return {
             "host": "smtp.gmail.com",
-            "port": 465,
+            "port": 587,
             "user": os.getenv("GMAIL_USER", ""),
             "password": os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", ""),
             "from_name": "Krishi AI",
             "from_addr": os.getenv("GMAIL_USER", ""),
-            "use_ssl": True,
+            "use_ssl": False,  # port 587 uses STARTTLS, not SSL
             "provider": "gmail",
         }
     else:  # brevo or generic smtp
