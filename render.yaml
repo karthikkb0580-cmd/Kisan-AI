@@ -18,3 +18,13 @@ services:
       - key: DATABASE_URL
         sync: false
         description: "Optional: PostgreSQL connection URL (e.g. from Supabase/Neon) for persistent data storage"
+      - key: EMAIL_PROVIDER
+        sync: false
+        value: gmail
+        description: "Email provider to use: 'gmail' or 'smtp'"
+      - key: GMAIL_USER
+        sync: false
+        description: "Your Gmail email address for sending OTPs"
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+        description: "Your 16-character Gmail App Password"

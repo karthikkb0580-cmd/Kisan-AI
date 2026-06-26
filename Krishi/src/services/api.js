@@ -3,7 +3,18 @@
  * All calls go to http://localhost:8000/api/v1
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const getBaseUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL
+  }
+  const hostname = window.location.hostname
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000/api/v1'
+  }
+  return 'https://krishi-ai-backend.onrender.com/api/v1'
+}
+
+const BASE_URL = getBaseUrl()
 
 // ── Token management ──────────────────────────────────────────────────────────
 
