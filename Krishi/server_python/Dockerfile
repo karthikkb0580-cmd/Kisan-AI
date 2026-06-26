@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -7,12 +7,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Set work directory
 WORKDIR /app
-
-# Install system dependencies (required for building some python packages if needed)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Copy and install python dependencies
 COPY requirements.txt /app/
@@ -25,5 +19,5 @@ COPY . /app/
 # Expose the default port
 EXPOSE 8000
 
-# Start the uvicorn server
-CMD uvicorn main:app --host 0.0.0.0 --port $PORT
+# Start the uvicorn server with explicit shell expansion for the port
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT"]
