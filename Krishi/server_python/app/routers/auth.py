@@ -94,7 +94,7 @@ def _verify_otp_hash(otp: str, hashed: str) -> bool:
         try:
             PasswordHasher().verify(hashed, otp)
             return True
-        except VerifyMismatchError:
+        except Exception:
             return False
     except ImportError:
         import bcrypt

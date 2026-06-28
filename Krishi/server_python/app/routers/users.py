@@ -9,7 +9,18 @@ from app import database
 from app.config import UPLOAD_DIR
 from app.schemas import UpdateProfileRequest, SendOTPRequest, VerifyOTPRequest
 from app.services.auth_helpers import get_current_user_id
-from app.services.otp_service import send_otp
+import logging
+from app.services.email_service import send_otp_email
+
+logger = logging.getLogger("krishi.users")
+
+def _send_otp_helper(channel: str, contact: str, code: str, purpose: str) -> bool:
+    if channel == "email":
+        return send_otp_email(to_email=contact, otp=code, purpose=purpose)
+    else:
+        logger.warning(f"[SMS DEV-MODE] OTP for {contact} (purpose={purpose}): {code}")
+        print(f"\n[SMS DEV-MODE] OTP for {contact} (purpose={purpose}): {code}\n")
+        return True
 
 router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
@@ -60,7 +71,7 @@ async def verify_contact_send(req: SendOTPRequest,
                               user_id: int = Depends(get_current_user_id)):
     code = f"{random.randint(100000, 999999)}"
     database.save_otp(req.contact, code, "verify_secondary")
-    await send_otp(req.channel, req.contact, code, "verify_secondary")
+    _send_otp_helper(req.channel, req.contact, code, "verify_secondary")
     return {"detail": f"Verification OTP sent to {req.contact}."}
 
 @router.post("/me/verify-contact/confirm")
