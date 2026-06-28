@@ -23,6 +23,26 @@ def create_tokens(user_id: int) -> dict:
                           JWT_SECRET, algorithm=JWT_ALGORITHM)
     return {"access_token": access, "refresh_token": refresh, "token_type": "bearer"}
 
+def refresh_access_token(refresh_token: str) -> Optional[dict]:
+    """Validate a refresh token and return a new access token, or None if invalid."""
+    try:
+        payload = jwt.decode(refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            return None
+        user_id = int(payload["sub"])
+        now = datetime.utcnow()
+        access = jwt.encode(
+            {"sub": str(user_id), "type": "access",
+             "exp": now + timedelta(minutes=ACCESS_TTL)},
+            JWT_SECRET, algorithm=JWT_ALGORITHM,
+        )
+        return {"access_token": access, "token_type": "bearer"}
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+
 def get_current_user_id(authorization: Optional[str] = Header(None)) -> int:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(401, "Missing or invalid auth token")

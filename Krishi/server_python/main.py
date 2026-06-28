@@ -22,8 +22,6 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 # Initialize Database (creates tables if missing)
 database.init_db()
 
-# Seed default users
-auth.seed_users()
 
 # Initialize FastAPI App
 app = FastAPI(

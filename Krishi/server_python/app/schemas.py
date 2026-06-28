@@ -41,7 +41,8 @@ class LoginOTPRequest(BaseModel):
     code: str
 
 class FirebaseLoginRequest(BaseModel):
-    phone: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
     full_name: Optional[str] = None
 
 class RefreshRequest(BaseModel):

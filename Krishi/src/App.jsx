@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useFarmvestStore } from './store/useFarmvestStore'
+import { TokenStore } from './services/api'
 
 // Layout
 import Header    from './components/layout/Header'
@@ -11,10 +12,11 @@ import Dashboard   from './components/dashboard/Dashboard'
 
 /**
  * App — top-level router shell.
- * Auth views are now rendered as a blurred modal overlay on the landing page.
+ * Auth views are rendered as a blurred modal overlay on the landing page.
+ * OTP-based authentication is handled entirely within AuthModal.
  */
 function App() {
-  const { view, setView, theme } = useFarmvestStore()
+  const { view, setView, setUser, theme } = useFarmvestStore()
 
   // Scroll to top on every view change
   useEffect(() => {

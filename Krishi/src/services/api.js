@@ -137,34 +137,33 @@ export const AuthAPI = {
     }),
 
   /**
-   * Log in or register a user after successful Firebase phone OTP verification.
+   * Log in or register a user after successful Firebase verification (email or phone).
    */
-  loginFirebase: (phone, fullName) =>
+  loginFirebase: (payload) =>
     apiFetch('/auth/login/firebase', {
       method: 'POST',
-      body: JSON.stringify({
-        phone,
-        full_name: fullName || undefined,
-      }),
+      body: JSON.stringify(payload),
     }),
 
   /**
-   * Send / resend a fresh OTP via Gmail SMTP — works for ANY email address.
-   * channel = 'email' | 'sms', purpose = 'registration' | 'login' | 'verify_secondary'
+   * Send a 6-digit OTP to the given email via Resend.
+   * payload = { email, purpose, full_name? }
+   * purpose = 'login' | 'registration'
    */
-  sendOTP: (channel, contact, purpose = 'registration') =>
-    apiFetch('/auth/otp/send', {
+  sendOTP: (payload) =>
+    apiFetch('/auth/send-otp', {
       method: 'POST',
-      body: JSON.stringify({ channel, contact, purpose }),
+      body: JSON.stringify(payload),
     }),
 
   /**
-   * Verify OTP for registration / secondary contact
+   * Verify OTP and return JWT tokens + user.
+   * payload = { email, code, purpose, full_name? }
    */
-  verifyOTP: (channel, contact, code, purpose = 'registration') =>
-    apiFetch('/auth/otp/verify', {
+  verifyOTP: (payload) =>
+    apiFetch('/auth/verify-otp', {
       method: 'POST',
-      body: JSON.stringify({ channel, contact, code, purpose }),
+      body: JSON.stringify(payload),
     }),
 
   /**

@@ -1,89 +1,26 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { X, ArrowRight, User, Mail, Lock, Eye, EyeOff, ShieldCheck, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, ArrowRight, User, Mail, ShieldCheck, RefreshCw } from 'lucide-react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
 import { AuthAPI, TokenStore } from '../../services/api'
 
-// ── OTP digit-box sub-component ───────────────────────────────────────────────
-function OTPInput({ value, onChange }) {
-  const refs = [useRef(), useRef(), useRef(), useRef(), useRef(), useRef()]
-
-  const handleKey = (i, e) => {
-    if (e.key === 'Backspace') {
-      const next = [...value]
-      if (next[i]) {
-        next[i] = ''
-        onChange(next.join(''))
-      } else if (i > 0) {
-        refs[i - 1].current?.focus()
-      }
-      return
-    }
-    if (e.key === 'ArrowLeft' && i > 0) { refs[i - 1].current?.focus(); return }
-    if (e.key === 'ArrowRight' && i < 5) { refs[i + 1].current?.focus(); return }
-  }
-
-  const handleChange = (i, e) => {
-    const char = e.target.value.replace(/\D/g, '').slice(-1)
-    if (!char) return
-    const next = [...value.padEnd(6, ' ').split('').slice(0, 6)]
-    next[i] = char
-    onChange(next.join('').replace(/ /g, ''))
-    if (i < 5) refs[i + 1].current?.focus()
-  }
-
-  const handlePaste = (e) => {
-    e.preventDefault()
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    onChange(pasted)
-    const focusIdx = Math.min(pasted.length, 5)
-    refs[focusIdx].current?.focus()
-  }
-
-  return (
-    <div className="otp-boxes" onPaste={handlePaste}>
-      {[0,1,2,3,4,5].map(i => (
-        <input
-          key={i}
-          ref={refs[i]}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          className={`otp-box${value[i] ? ' otp-box--filled' : ''}`}
-          value={value[i] || ''}
-          onChange={e => handleChange(i, e)}
-          onKeyDown={e => handleKey(i, e)}
-          autoFocus={i === 0}
-          aria-label={`OTP digit ${i + 1}`}
-        />
-      ))}
-    </div>
-  )
-}
-
-// ── Main modal ────────────────────────────────────────────────────────────────
 export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) {
   const { language, setUser } = useFarmvestStore()
   const [tab, setTab] = useState(initialTab)
 
-  // Registration steps: 'form' | 'otp' | 'done'
-  const [regStep, setRegStep] = useState('form')
+  // Step 1 — collect email (and name for registration)
+  const [name, setName]   = useState('')
+  const [email, setEmail] = useState('')
 
-  // Form fields
-  const [name, setName]         = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [otp, setOtp]           = useState('')
+  // Step 2 — OTP entry
+  const [otpSent, setOtpSent]   = useState(false)
+  const [code, setCode]         = useState('')
+  const [countdown, setCountdown] = useState(0)
 
   // UI state
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
-  const [success, setSuccess]   = useState('')
-
-  // Resend countdown (seconds)
-  const [countdown, setCountdown] = useState(0)
-  const timerRef = useRef(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError]     = useState('')
+  const [success, setSuccess] = useState('')
 
   const t = (key, fallback) =>
     translations[language]?.[key] || translations['en']?.[key] || fallback || key
@@ -101,124 +38,115 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     return () => { document.body.style.overflow = '' }
   }, [])
 
-  // Countdown timer for resend
+  // Resend countdown timer
   useEffect(() => {
-    if (countdown <= 0) { clearInterval(timerRef.current); return }
-    timerRef.current = setInterval(() => setCountdown(c => c - 1), 1000)
-    return () => clearInterval(timerRef.current)
+    if (countdown <= 0) return
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(timer)
   }, [countdown])
-
-  const startCountdown = () => setCountdown(60)
 
   const switchTab = (newTab) => {
     setTab(newTab)
-    setRegStep('form')
-    setError(''); setSuccess('')
-    setName(''); setEmail(''); setPassword('')
-    setShowPass(false); setOtp('')
+    setError('')
+    setSuccess('')
+    setName('')
+    setEmail('')
+    setCode('')
+    setOtpSent(false)
     setCountdown(0)
   }
 
-  const applyUser = (profile) => {
-    setUser({
-      id:            profile.id,
-      name:          profile.full_name,
-      email:         profile.email || '',
-      phone:         profile.phone || '',
-      avatar:        profile.full_name?.slice(0, 2).toUpperCase() || '??',
-      emailVerified: profile.email_verified,
-      phoneVerified: profile.phone_verified,
-      createdAt:     profile.created_at,
-    })
-  }
-
-  // ── LOGIN ─────────────────────────────────────────────────────────────────
-  const handleLogin = async (e) => {
-    e.preventDefault()
-    setError(''); setSuccess('')
-    if (!email.trim()) { setError('Please enter your email address.'); return }
-    if (!password)     { setError('Please enter your password.'); return }
-
-    setLoading(true)
-    try {
-      const data = await AuthAPI.loginPassword(email.trim(), password)
-      TokenStore.set(data.access_token, data.refresh_token)
-      applyUser(data.user || await AuthAPI.getMe())
-      onSuccess('dashboard')
-    } catch (err) {
-      setError(err.message || 'Login failed. Please check your email and password.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── REGISTER STEP 1 — send OTP ────────────────────────────────────────────
-  const handleRegisterSend = async (e) => {
-    e.preventDefault()
-    setError(''); setSuccess('')
-    if (!name.trim())              { setError('Please enter your full name.'); return }
-    if (!email.trim())             { setError('Please enter your email address.'); return }
-    if (!password)                 { setError('Please enter a password.'); return }
-    if (password.length < 6)       { setError('Password must be at least 6 characters.'); return }
-
-    setLoading(true)
-    try {
-      await AuthAPI.registerSendOTP(name.trim(), email.trim(), password)
-      setRegStep('otp')
-      setOtp('')
-      startCountdown()
-      setSuccess('')
-    } catch (err) {
-      setError(err.message || 'Failed to send OTP. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── REGISTER STEP 2 — verify OTP ─────────────────────────────────────────
-  const handleRegisterVerify = async (e) => {
+  // ── Step 1: Send OTP ──────────────────────────────────────────────────────
+  const handleSendOTP = async (e) => {
     e.preventDefault()
     setError('')
-    if (otp.length < 6) { setError('Please enter the complete 6-digit code.'); return }
+    setSuccess('')
+
+    if (tab === 'register' && !name.trim()) {
+      setError('Please enter your full name.')
+      return
+    }
+    if (!email.trim()) {
+      setError('Please enter your email address.')
+      return
+    }
 
     setLoading(true)
     try {
-      const data = await AuthAPI.registerConfirmOTP(email.trim(), otp)
-      TokenStore.set(data.access_token, data.refresh_token)
-      applyUser(data.user || await AuthAPI.getMe())
-      setRegStep('done')
-      setTimeout(() => onSuccess('dashboard'), 1400)
+      const purpose = tab === 'register' ? 'registration' : 'login'
+      await AuthAPI.sendOTP({ email: email.trim(), purpose, full_name: name.trim() || undefined })
+
+      setOtpSent(true)
+      setCountdown(60)
+      setSuccess(`A 6-digit code has been sent to ${email.trim()}.`)
     } catch (err) {
-      setError(err.message || 'Invalid OTP. Please try again.')
+      const msg = err?.detail || err?.message || 'Failed to send verification code. Please try again.'
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
     } finally {
       setLoading(false)
     }
   }
 
-  // ── RESEND OTP ────────────────────────────────────────────────────────────
+  // ── Step 1b: Resend OTP ───────────────────────────────────────────────────
   const handleResend = async () => {
-    if (countdown > 0 || loading) return
-    setError(''); setSuccess('')
+    if (countdown > 0) return
+    setError('')
+    setSuccess('')
     setLoading(true)
     try {
-      await AuthAPI.registerSendOTP(name.trim(), email.trim(), password)
-      setOtp('')
-      startCountdown()
-      setSuccess('A new code has been sent to your email.')
+      const purpose = tab === 'register' ? 'registration' : 'login'
+      await AuthAPI.sendOTP({ email: email.trim(), purpose, full_name: name.trim() || undefined })
+      setCountdown(60)
+      setSuccess('A new code has been sent to your inbox.')
     } catch (err) {
-      setError(err.message || 'Failed to resend OTP.')
+      const msg = err?.detail || err?.message || 'Resend failed. Try again.'
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
     } finally {
       setLoading(false)
     }
   }
 
-  // ── Auto-submit when all 6 digits filled ─────────────────────────────────
-  useEffect(() => {
-    if (regStep === 'otp' && otp.length === 6 && !loading) {
-      handleRegisterVerify({ preventDefault: () => {} })
+  // ── Step 2: Verify OTP ────────────────────────────────────────────────────
+  const handleVerifyOTP = async (e) => {
+    e.preventDefault()
+    setError('')
+
+    if (!code.trim() || code.trim().length !== 6) {
+      setError('Please enter the 6-digit code.')
+      return
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otp])
+
+    setLoading(true)
+    try {
+      const purpose = tab === 'register' ? 'registration' : 'login'
+      const data = await AuthAPI.verifyOTP({
+        email:     email.trim(),
+        code:      code.trim(),
+        purpose,
+        full_name: name.trim() || undefined,
+      })
+
+      TokenStore.set(data.access_token, data.refresh_token)
+
+      setUser({
+        id:            data.user.id,
+        name:          data.user.full_name,
+        email:         data.user.email || '',
+        phone:         data.user.phone || '',
+        avatar:        data.user.full_name?.slice(0, 2).toUpperCase() || '??',
+        emailVerified: data.user.email_verified,
+        phoneVerified: data.user.phone_verified,
+        createdAt:     data.user.created_at,
+      })
+
+      if (onSuccess) onSuccess('dashboard')
+    } catch (err) {
+      const msg = err?.detail || err?.message || 'Invalid or expired code. Please try again.'
+      setError(typeof msg === 'string' ? msg : JSON.stringify(msg))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <div className="auth-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
@@ -235,8 +163,8 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
           <span className="auth-logo-text">Krishi<span className="auth-logo-accent"> AI</span></span>
         </div>
 
-        {/* Tabs — hidden during OTP / done steps */}
-        {regStep === 'form' && (
+        {/* Tabs — hidden once OTP is sent */}
+        {!otpSent && (
           <div className="auth-tab-bar">
             <button className={`auth-tab-btn ${tab === 'login' ? 'active' : ''}`} onClick={() => switchTab('login')}>
               {t('login', 'Sign In')}
@@ -248,99 +176,44 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
         )}
 
         <div className="auth-form-wrap">
-
-          {/* ── LOGIN FORM ── */}
-          {tab === 'login' && (
+          {/* ── Step 1: Enter email ── */}
+          {!otpSent ? (
             <>
-              <p className="auth-form-subtitle">Welcome back! Sign in to your account.</p>
-              {error   && <div className="auth-error">{error}</div>}
-              {success && <div className="auth-success">{success}</div>}
-
-              <form onSubmit={handleLogin} className="auth-form" noValidate>
-                <div className="auth-field">
-                  <label htmlFor="login-email" className="auth-label">Email Address</label>
-                  <div className="auth-input-wrap">
-                    <Mail size={16} className="auth-input-icon" />
-                    <input
-                      id="login-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      className="auth-input"
-                      autoFocus
-                    />
-                  </div>
-                </div>
-
-                <div className="auth-field">
-                  <label htmlFor="login-password" className="auth-label">Password</label>
-                  <div className="auth-input-wrap">
-                    <Lock size={16} className="auth-input-icon" />
-                    <input
-                      id="login-password"
-                      type={showPass ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      className="auth-input"
-                      style={{ paddingRight: '2.5rem' }}
-                    />
-                    <button type="button" className="auth-eye-btn" onClick={() => setShowPass(s => !s)} tabIndex={-1}>
-                      {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-
-                <button id="btn-login-submit" type="submit" className="auth-submit-btn" disabled={loading}>
-                  {loading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Signing in…</span>
-                    : <span className="auth-loading-row">Sign In <ArrowRight size={15} /></span>}
-                </button>
-              </form>
-
-              <p className="auth-switch-text">
-                No account?{' '}
-                <button className="auth-switch-btn" onClick={() => switchTab('register')}>Create one →</button>
+              <p className="auth-form-subtitle">
+                {tab === 'login'
+                  ? 'Enter your email — we\'ll send you a 6-digit sign-in code.'
+                  : 'Create your account. We\'ll verify your email with a code.'}
               </p>
-            </>
-          )}
 
-          {/* ── REGISTER — STEP 1: form ── */}
-          {tab === 'register' && regStep === 'form' && (
-            <>
-              <p className="auth-form-subtitle">Create your Krishi AI account. We'll verify your email with an OTP.</p>
-              {error   && <div className="auth-error">{error}</div>}
+              {error && <div className="auth-error">{error}</div>}
 
-              <form onSubmit={handleRegisterSend} className="auth-form" noValidate>
-                <div className="auth-field">
-                  <label htmlFor="reg-name" className="auth-label">Full Name</label>
-                  <div className="auth-input-wrap">
-                    <User size={16} className="auth-input-icon" />
-                    <input
-                      id="reg-name"
-                      type="text"
-                      placeholder="Ramesh Kumar"
-                      autoComplete="name"
-                      required
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      className="auth-input"
-                      autoFocus
-                    />
+              <form onSubmit={handleSendOTP} className="auth-form" noValidate>
+                {tab === 'register' && (
+                  <div className="auth-field">
+                    <label htmlFor="reg-name" className="auth-label">Full Name</label>
+                    <div className="auth-input-wrap">
+                      <User size={16} className="auth-input-icon" />
+                      <input
+                        id="reg-name"
+                        type="text"
+                        placeholder="Ramesh Kumar"
+                        autoComplete="name"
+                        required
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        className="auth-input"
+                        autoFocus
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="auth-field">
-                  <label htmlFor="reg-email" className="auth-label">Email Address</label>
+                  <label htmlFor="auth-email" className="auth-label">Email Address</label>
                   <div className="auth-input-wrap">
                     <Mail size={16} className="auth-input-icon" />
                     <input
-                      id="reg-email"
+                      id="auth-email"
                       type="email"
                       placeholder="you@example.com"
                       autoComplete="email"
@@ -348,97 +221,98 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       className="auth-input"
+                      autoFocus={tab === 'login'}
                     />
                   </div>
                 </div>
 
-                <div className="auth-field">
-                  <label htmlFor="reg-password" className="auth-label">Password</label>
-                  <div className="auth-input-wrap">
-                    <Lock size={16} className="auth-input-icon" />
-                    <input
-                      id="reg-password"
-                      type={showPass ? 'text' : 'password'}
-                      placeholder="Min. 6 characters"
-                      autoComplete="new-password"
-                      required
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      className="auth-input"
-                      style={{ paddingRight: '2.5rem' }}
-                    />
-                    <button type="button" className="auth-eye-btn" onClick={() => setShowPass(s => !s)} tabIndex={-1}>
-                      {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-
-                <button id="btn-register-submit" type="submit" className="auth-submit-btn" disabled={loading}>
+                <button id="btn-auth-submit" type="submit" className="auth-submit-btn" disabled={loading}>
                   {loading
-                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Sending OTP…</span>
+                    ? <span className="auth-loading-row"><span className="auth-spinner" /> Sending code…</span>
                     : <span className="auth-loading-row">Send Verification Code <ArrowRight size={15} /></span>}
                 </button>
               </form>
 
               <p className="auth-switch-text">
-                Already have an account?{' '}
-                <button className="auth-switch-btn" onClick={() => switchTab('login')}>Sign in →</button>
+                {tab === 'login' ? (
+                  <>
+                    No account?{' '}
+                    <button className="auth-switch-btn" onClick={() => switchTab('register')}>Create one →</button>
+                  </>
+                ) : (
+                  <>
+                    Already have an account?{' '}
+                    <button className="auth-switch-btn" onClick={() => switchTab('login')}>Sign in →</button>
+                  </>
+                )}
               </p>
             </>
-          )}
-
-          {/* ── REGISTER — STEP 2: OTP verification ── */}
-          {tab === 'register' && regStep === 'otp' && (
+          ) : (
+            /* ── Step 2: Enter OTP code ── */
             <div className="otp-step">
               <div className="otp-step-icon">
                 <ShieldCheck size={32} strokeWidth={1.5} />
               </div>
               <h3 className="otp-step-title">Check your inbox</h3>
               <p className="otp-step-sub">
-                We sent a 6-digit code to<br />
+                We sent a 6-digit code to:<br />
                 <strong>{email}</strong>
               </p>
 
-              {error   && <div className="auth-error">{error}</div>}
-              {success && <div className="auth-success">{success}</div>}
+              {success && <div className="auth-success" style={{ marginTop: '0.75rem', textAlign: 'center', fontSize: '0.82rem' }}>{success}</div>}
+              {error && <div className="auth-error" style={{ marginTop: '0.75rem' }}>{error}</div>}
 
-              <form onSubmit={handleRegisterVerify} className="auth-form" noValidate>
-                <OTPInput value={otp} onChange={setOtp} />
+              <form onSubmit={handleVerifyOTP} className="auth-form" style={{ marginTop: '1.25rem' }} noValidate>
+                <div className="auth-field">
+                  <label htmlFor="otp-code" className="auth-label">6-Digit Code</label>
+                  <div className="auth-input-wrap">
+                    <ShieldCheck size={16} className="auth-input-icon" />
+                    <input
+                      id="otp-code"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]{6}"
+                      maxLength={6}
+                      placeholder="123456"
+                      required
+                      value={code}
+                      onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                      className="auth-input"
+                      autoFocus
+                      style={{ letterSpacing: '0.25em', textAlign: 'center', fontSize: '1.25rem' }}
+                    />
+                  </div>
+                </div>
 
-                <button id="btn-otp-verify" type="submit" className="auth-submit-btn" disabled={loading || otp.length < 6}>
+                <button id="btn-otp-verify" type="submit" className="auth-submit-btn" disabled={loading}>
                   {loading
                     ? <span className="auth-loading-row"><span className="auth-spinner" /> Verifying…</span>
-                    : <span className="auth-loading-row">Verify &amp; Create Account <ShieldCheck size={15} /></span>}
+                    : <span className="auth-loading-row">Verify & Sign In <ArrowRight size={15} /></span>}
                 </button>
               </form>
 
-              <div className="otp-resend-row">
+              {/* Resend */}
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginTop: '1rem' }}>
                 <button
-                  className={`otp-resend-btn${countdown > 0 ? ' otp-resend-btn--wait' : ''}`}
-                  onClick={handleResend}
+                  className="auth-switch-btn"
                   disabled={countdown > 0 || loading}
+                  onClick={handleResend}
+                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
                   <RefreshCw size={13} />
                   {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
                 </button>
-                <button className="auth-switch-btn" onClick={() => { setRegStep('form'); setError(''); setOtp('') }}>
-                  ← Change details
-                </button>
               </div>
+
+              <button
+                className="auth-switch-btn"
+                style={{ marginTop: '1.25rem', display: 'block', marginInline: 'auto' }}
+                onClick={() => { setOtpSent(false); setCode(''); setError(''); setSuccess('') }}
+              >
+                ← Change email
+              </button>
             </div>
           )}
-
-          {/* ── REGISTER — STEP 3: success ── */}
-          {tab === 'register' && regStep === 'done' && (
-            <div className="otp-step otp-step--done">
-              <div className="otp-step-icon otp-step-icon--green">
-                <CheckCircle2 size={40} strokeWidth={1.5} />
-              </div>
-              <h3 className="otp-step-title">Account created!</h3>
-              <p className="otp-step-sub">Welcome to Krishi AI, <strong>{name}</strong>. Redirecting you…</p>
-            </div>
-          )}
-
         </div>
       </div>
     </div>
