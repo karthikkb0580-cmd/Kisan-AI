@@ -1,12 +1,14 @@
 """
 email_service.py — Krishi AI Email Delivery
 ============================================
-Sends OTP emails using Gmail SMTP (credentials from .env).
-• Works reliably on Render (port 465 SSL / 587 TLS both supported)
+Sends OTP emails using Gmail SMTP (credentials from env vars).
+
+• Credentials are read at SEND time (not import time) so Render env vars work
+• SMTP runs in a thread-pool executor so it never blocks the FastAPI event loop
 • Falls back to console-log in dev mode when credentials are not set
 • Beautiful HTML email template included
 
-Configure in .env / Render env vars:
+Configure in Render dashboard or .env:
   GMAIL_USER=your@gmail.com
   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   (16-char App Password)
 
@@ -16,13 +18,20 @@ Get App Password: https://myaccount.google.com/apppasswords
 import os
 import smtplib
 import logging
+import threading
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from typing import Optional
 
 logger = logging.getLogger("krishi.email")
 
-GMAIL_USER         = os.getenv("GMAIL_USER", "").strip()
-GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+
+def _get_credentials():
+    """Read credentials fresh from env at call time (not import time)."""
+    user = os.environ.get("GMAIL_USER", "").strip()
+    password = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+    return user, password
+
 
 # ── OTP Email HTML Template ───────────────────────────────────────────────────
 
@@ -54,7 +63,7 @@ def _otp_html(otp: str, purpose: str) -> str:
                            border-radius:14px;padding:10px 18px;
                            font-size:26px;font-weight:900;color:#fff;
                            letter-spacing:-0.5px;">
-                🌱 Krishi <span style="color:#bbf7d0;">AI</span>
+                &#127807; Krishi <span style="color:#bbf7d0;">AI</span>
               </span>
             </td>
           </tr>
@@ -76,13 +85,13 @@ def _otp_html(otp: str, purpose: str) -> str:
                 </span>
               </div>
               <p style="margin:0 0 24px;font-size:13px;color:#6b7280;text-align:center;">
-                ⏱ This code expires in <strong>10 minutes</strong>.<br/>
+                &#8987; This code expires in <strong>10 minutes</strong>.<br/>
                 Never share this code with anyone.
               </p>
               <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;" />
               <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;line-height:1.6;">
                 If you didn't request this, you can safely ignore this email.<br/>
-                © 2025 Krishi AI — Empowering Indian Farmers 🇮🇳
+                &copy; 2025 Krishi AI &mdash; Empowering Indian Farmers &#127470;&#127475;
               </p>
             </td>
           </tr>
@@ -94,24 +103,10 @@ def _otp_html(otp: str, purpose: str) -> str:
 </html>"""
 
 
-# ── Send OTP via Gmail SMTP ───────────────────────────────────────────────────
+# ── Core SMTP send (runs in a thread) ────────────────────────────────────────
 
-def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
-    """
-    Send an OTP email using Gmail SMTP (SSL on port 465).
-    Returns True on success, False on failure.
-    """
-    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
-        # Dev-mode: print to console so local dev still works
-        logger.warning(
-            "[EMAIL DEV-MODE] GMAIL credentials not set. "
-            f"OTP for {to_email!r} (purpose={purpose}): {otp}"
-        )
-        print(f"\n{'='*60}")
-        print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
-        print(f"{'='*60}\n")
-        return True   # Don't block local dev
-
+def _smtp_send(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_password: str) -> bool:
+    """Blocking SMTP call — always run via send_otp_email() which uses a thread."""
     subject_map = {
         "registration":   "Verify Your Krishi AI Account",
         "login":          "Your Krishi AI Sign-In Code",
@@ -121,31 +116,94 @@ def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bo
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = f"Krishi AI <{GMAIL_USER}>"
+    msg["From"]    = f"Krishi AI <{gmail_user}>"
     msg["To"]      = to_email
 
-    # Plain text fallback
     plain = (
         f"Your Krishi AI verification code is: {otp}\n\n"
-        f"This code expires in 10 minutes. Do not share it with anyone."
+        "This code expires in 10 minutes. Do not share it with anyone."
     )
     msg.attach(MIMEText(plain, "plain", "utf-8"))
     msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as server:
-            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+    # Try SSL on 465 first, fallback to STARTTLS on 587
+    for attempt, use_ssl, port in [(1, True, 465), (2, False, 587)]:
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=25)
+            else:
+                server = smtplib.SMTP("smtp.gmail.com", port, timeout=25)
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
 
-        logger.info(f"[EMAIL] OTP sent to {to_email!r} via Gmail (purpose={purpose})")
-        return True
+            server.login(gmail_user, gmail_password)
+            server.sendmail(gmail_user, to_email, msg.as_string())
+            server.quit()
+            logger.info(f"[EMAIL] OTP sent to {to_email!r} via Gmail port {port} (purpose={purpose})")
+            return True
 
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"[EMAIL] Gmail auth failed — check GMAIL_APP_PASSWORD: {e}")
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"[EMAIL] Gmail auth FAILED — check GMAIL_APP_PASSWORD is a 16-char App Password (not your Gmail login): {e}")
+            return False  # No point retrying if auth fails
+
+        except smtplib.SMTPException as e:
+            logger.warning(f"[EMAIL] SMTP attempt {attempt} (port={port}) failed: {e}")
+            if attempt == 2:
+                logger.error("[EMAIL] All SMTP attempts exhausted.")
+                return False
+
+        except Exception as e:
+            logger.error(f"[EMAIL] Unexpected error on attempt {attempt}: {e}")
+            if attempt == 2:
+                return False
+
+    return False
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
+    """
+    Send an OTP email using Gmail SMTP.
+    - Reads credentials fresh from env at call time (safe for Render)
+    - Runs SMTP in a thread so it never blocks FastAPI's event loop
+    - Returns True on success, False on failure
+    """
+    gmail_user, gmail_password = _get_credentials()
+
+    if not gmail_user or not gmail_password:
+        # Dev-mode: print to console so local dev still works without credentials
+        logger.warning(
+            f"[EMAIL DEV-MODE] No GMAIL credentials set. "
+            f"OTP for {to_email!r} (purpose={purpose}): {otp}"
+        )
+        print(f"\n{'='*60}")
+        print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
+        print(f"{'='*60}\n")
+        return True  # Don't block dev — pretend it worked
+
+    # Run blocking SMTP in a thread to avoid blocking the async event loop
+    result = [False]
+    error  = [None]
+
+    def _worker():
+        try:
+            result[0] = _smtp_send(to_email, otp, purpose, gmail_user, gmail_password)
+        except Exception as e:
+            error[0] = e
+            result[0] = False
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+    thread.join(timeout=35)  # 35s max — Render requests timeout at ~60s
+
+    if thread.is_alive():
+        logger.error("[EMAIL] SMTP thread timed out after 35s")
         return False
-    except smtplib.SMTPException as e:
-        logger.error(f"[EMAIL] SMTP error sending to {to_email!r}: {e}")
+
+    if error[0]:
+        logger.error(f"[EMAIL] Thread error: {error[0]}")
         return False
-    except Exception as e:
-        logger.error(f"[EMAIL] Unexpected error: {e}")
-        return False
+
+    return result[0]

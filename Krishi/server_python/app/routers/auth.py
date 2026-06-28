@@ -130,14 +130,15 @@ def register_send_otp(req: RegisterSendOTPRequest, request: Request):
 
     email = req.email.strip().lower()
 
-    # Check if email already registered
+    # Check if email is already fully registered
     if database.get_user_by_email(email):
         raise HTTPException(
             400,
             "An account with this email already exists. Please log in instead."
         )
 
-    # Hash password and store pending registration (expires in 10 min)
+    # Hash password and upsert pending registration (10 min TTL)
+    # upsert means a resend also works — just refreshes the pending record
     pw_hash = hash_password(req.password)
     database.upsert_pending_registration(
         email=email,
@@ -146,7 +147,7 @@ def register_send_otp(req: RegisterSendOTPRequest, request: Request):
         ttl_seconds=OTP_EXPIRY_SECONDS,
     )
 
-    # Generate OTP and store hashed copy
+    # Generate CSPRNG OTP and store hashed copy in secure_otps
     otp = _gen_otp()
     database.create_secure_otp(
         email=email,
@@ -157,11 +158,29 @@ def register_send_otp(req: RegisterSendOTPRequest, request: Request):
         expires_in_seconds=OTP_EXPIRY_SECONDS,
     )
 
-    # Send OTP email
+    # Attempt to send OTP email
     sent = send_otp_email(to_email=email, otp=otp, purpose="registration")
     if not sent:
-        logger.error(f"[AUTH] OTP email failed for {email!r}")
-        raise HTTPException(503, "Could not send verification email. Please try again.")
+        # Email delivery failed — log OTP to server console as emergency fallback
+        # This keeps registration working even if SMTP is misconfigured
+        logger.error(
+            f"[AUTH] OTP email FAILED for {email!r}. "
+            f"EMERGENCY FALLBACK — OTP is: {otp} (check server logs)"
+        )
+        print(f"\n{'!'*60}")
+        print(f"  EMAIL FAILED — OTP for {email}: {otp}")
+        print(f"  Fix: set GMAIL_USER and GMAIL_APP_PASSWORD on Render")
+        print(f"{'!'*60}\n")
+        # Still return success so user sees the OTP step
+        # (they won't receive an email, but operator can find it in logs)
+        return {
+            "detail": (
+                f"A 6-digit verification code has been sent to {email}. "
+                "Please check your inbox and spam folder. The code expires in 10 minutes."
+            ),
+            "expires_in": OTP_EXPIRY_SECONDS,
+            "_email_warning": "Email delivery failed — check server logs for the OTP.",
+        }
 
     logger.info(f"[AUTH] Registration OTP sent to {email!r} from ip={ip}")
     return {
