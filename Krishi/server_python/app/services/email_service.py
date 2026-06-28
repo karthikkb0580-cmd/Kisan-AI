@@ -1,34 +1,37 @@
 """
-email_service.py — Krishi AI Email Delivery via Resend
-=======================================================
-Uses Resend's simple HTTP REST API to send OTP emails.
-• Free tier: 3,000 emails/month — no domain verification needed for @resend.dev sender
-• No SMTP blocked ports, works perfectly on Render / Railway / Fly.io
-• Falls back to console-log in dev mode (when RESEND_API_KEY is not set)
+email_service.py — Krishi AI Email Delivery
+============================================
+Sends OTP emails using Gmail SMTP (credentials from .env).
+• Works reliably on Render (port 465 SSL / 587 TLS both supported)
+• Falls back to console-log in dev mode when credentials are not set
+• Beautiful HTML email template included
 
-Resend docs: https://resend.com/docs
-Get free API key: https://resend.com (no credit card required)
+Configure in .env / Render env vars:
+  GMAIL_USER=your@gmail.com
+  GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   (16-char App Password)
+
+Get App Password: https://myaccount.google.com/apppasswords
 """
 
 import os
+import smtplib
 import logging
-import httpx
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 logger = logging.getLogger("krishi.email")
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
-# Resend free tier lets you send FROM: onboarding@resend.dev without owning a domain
-RESEND_FROM    = os.getenv("RESEND_FROM", "Krishi AI <onboarding@resend.dev>")
-RESEND_API_URL = "https://api.resend.com/emails"
+GMAIL_USER         = os.getenv("GMAIL_USER", "").strip()
+GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
 
 # ── OTP Email HTML Template ───────────────────────────────────────────────────
 
 def _otp_html(otp: str, purpose: str) -> str:
     purpose_label = {
-        "login":          "sign in to",
-        "registration":   "verify your email for",
-        "password_reset": "reset your password for",
-    }.get(purpose, "access")
+        "registration":   "verify your Krishi AI account",
+        "login":          "sign in to Krishi AI",
+        "password_reset": "reset your Krishi AI password",
+    }.get(purpose, "access Krishi AI")
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -37,48 +40,49 @@ def _otp_html(otp: str, purpose: str) -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Krishi AI — Verification Code</title>
 </head>
-<body style="margin:0;padding:0;background:#f4f6f8;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:40px 0;">
+<body style="margin:0;padding:0;background:#f0fdf4;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0fdf4;padding:40px 16px;">
     <tr>
       <td align="center">
-        <table width="480" cellpadding="0" cellspacing="0"
-               style="background:#ffffff;border-radius:16px;overflow:hidden;
-                      box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-          <!-- Header -->
+        <table width="520" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:20px;overflow:hidden;
+                      box-shadow:0 8px 32px rgba(22,163,74,0.12);">
           <tr>
-            <td style="background:linear-gradient(135deg,#16a34a,#15803d);
-                       padding:32px 40px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:10px;">
-                <div style="width:40px;height:40px;background:rgba(255,255,255,0.2);
-                            border-radius:10px;display:inline-block;line-height:40px;
-                            text-align:center;font-size:20px;font-weight:900;color:#fff;">K</div>
-                <span style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">
-                  Krishi <span style="color:#bbf7d0;">AI</span>
-                </span>
-              </div>
+            <td style="background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);
+                       padding:36px 48px;text-align:center;">
+              <span style="display:inline-block;background:rgba(255,255,255,0.18);
+                           border-radius:14px;padding:10px 18px;
+                           font-size:26px;font-weight:900;color:#fff;
+                           letter-spacing:-0.5px;">
+                🌱 Krishi <span style="color:#bbf7d0;">AI</span>
+              </span>
             </td>
           </tr>
-          <!-- Body -->
           <tr>
-            <td style="padding:40px 40px 20px;">
-              <p style="margin:0 0 8px;font-size:15px;color:#6b7280;">
-                Use this code to {purpose_label} Krishi AI:
+            <td style="padding:40px 48px 32px;">
+              <h2 style="margin:0 0 8px;font-size:20px;color:#15803d;font-weight:800;">
+                Email Verification
+              </h2>
+              <p style="margin:0 0 28px;font-size:15px;color:#374151;line-height:1.6;">
+                Use the code below to {purpose_label}:
               </p>
-              <div style="margin:24px 0;text-align:center;">
-                <span style="display:inline-block;font-size:42px;font-weight:900;
-                             letter-spacing:12px;color:#16a34a;
-                             background:#f0fdf4;border:2px solid #bbf7d0;
-                             border-radius:12px;padding:16px 24px;">
+              <div style="text-align:center;margin:0 0 28px;">
+                <span style="display:inline-block;background:#f0fdf4;
+                             border:2px solid #86efac;border-radius:16px;
+                             padding:18px 32px;font-size:48px;font-weight:900;
+                             letter-spacing:14px;color:#15803d;
+                             font-family:'Courier New',monospace;">
                   {otp}
                 </span>
               </div>
-              <p style="margin:0 0 16px;font-size:14px;color:#6b7280;text-align:center;">
-                This code is valid for <strong>10 minutes</strong>. Do not share it with anyone.
+              <p style="margin:0 0 24px;font-size:13px;color:#6b7280;text-align:center;">
+                ⏱ This code expires in <strong>10 minutes</strong>.<br/>
+                Never share this code with anyone.
               </p>
-              <hr style="border:none;border-top:1px solid #f3f4f6;margin:24px 0;" />
-              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-                If you didn't request this code, you can safely ignore this email.<br/>
-                &copy; 2025 Krishi AI &mdash; Empowering Indian Farmers
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 20px;" />
+              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;line-height:1.6;">
+                If you didn't request this, you can safely ignore this email.<br/>
+                © 2025 Krishi AI — Empowering Indian Farmers 🇮🇳
               </p>
             </td>
           </tr>
@@ -90,58 +94,58 @@ def _otp_html(otp: str, purpose: str) -> str:
 </html>"""
 
 
-# ── Send OTP via Resend ───────────────────────────────────────────────────────
+# ── Send OTP via Gmail SMTP ───────────────────────────────────────────────────
 
-def send_otp_email(to_email: str, otp: str, purpose: str = "login") -> bool:
+def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
     """
-    Send an OTP to `to_email` using Resend's REST API.
+    Send an OTP email using Gmail SMTP (SSL on port 465).
     Returns True on success, False on failure.
     """
-    if not RESEND_API_KEY:
-        # Dev-mode fallback: print OTP to server console
+    if not GMAIL_USER or not GMAIL_APP_PASSWORD:
+        # Dev-mode: print to console so local dev still works
         logger.warning(
-            "[EMAIL DEV-MODE] RESEND_API_KEY not set. "
+            "[EMAIL DEV-MODE] GMAIL credentials not set. "
             f"OTP for {to_email!r} (purpose={purpose}): {otp}"
         )
-        return True  # Allow development flow without real emails
+        print(f"\n{'='*60}")
+        print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
+        print(f"{'='*60}\n")
+        return True   # Don't block local dev
 
     subject_map = {
-        "login":          "Your Krishi AI Sign-In Code",
         "registration":   "Verify Your Krishi AI Account",
+        "login":          "Your Krishi AI Sign-In Code",
         "password_reset": "Reset Your Krishi AI Password",
     }
     subject = subject_map.get(purpose, "Your Krishi AI Verification Code")
 
-    payload = {
-        "from":    RESEND_FROM,
-        "to":      [to_email],
-        "subject": subject,
-        "html":    _otp_html(otp, purpose),
-    }
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"Krishi AI <{GMAIL_USER}>"
+    msg["To"]      = to_email
+
+    # Plain text fallback
+    plain = (
+        f"Your Krishi AI verification code is: {otp}\n\n"
+        f"This code expires in 10 minutes. Do not share it with anyone."
+    )
+    msg.attach(MIMEText(plain, "plain", "utf-8"))
+    msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
 
     try:
-        resp = httpx.post(
-            RESEND_API_URL,
-            headers={
-                "Authorization": f"Bearer {RESEND_API_KEY}",
-                "Content-Type":  "application/json",
-            },
-            json=payload,
-            timeout=15,
-        )
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=20) as server:
+            server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
+            server.sendmail(GMAIL_USER, to_email, msg.as_string())
 
-        if resp.status_code in (200, 201):
-            logger.info(f"[EMAIL] OTP sent to {to_email!r} via Resend (purpose={purpose})")
-            return True
-        else:
-            logger.error(
-                f"[EMAIL] Resend API error {resp.status_code}: {resp.text[:300]}"
-            )
-            return False
+        logger.info(f"[EMAIL] OTP sent to {to_email!r} via Gmail (purpose={purpose})")
+        return True
 
-    except httpx.TimeoutException:
-        logger.error("[EMAIL] Resend request timed out.")
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"[EMAIL] Gmail auth failed — check GMAIL_APP_PASSWORD: {e}")
         return False
-    except Exception as exc:
-        logger.error(f"[EMAIL] Unexpected error sending OTP: {exc}")
+    except smtplib.SMTPException as e:
+        logger.error(f"[EMAIL] SMTP error sending to {to_email!r}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"[EMAIL] Unexpected error: {e}")
         return False

@@ -103,41 +103,37 @@ export class APIError extends Error {
 
 export const AuthAPI = {
   /**
-   * Step 1 — Validate registration details and send a 6-digit OTP to the email.
-   * Returns { detail: "..." } on success.
+   * Step 1 of registration — collect name, email, password, send OTP email.
+   * payload = { full_name, email, password }
    */
-  registerSendOTP: (fullName, email, password) =>
+  registerSendOTP: (payload) =>
     apiFetch('/auth/register/send-otp', {
       method: 'POST',
-      body: JSON.stringify({ full_name: fullName, email, password }),
+      body: JSON.stringify(payload),
     }),
 
   /**
-   * Step 2 — Verify OTP, create the account, return { access_token, refresh_token, user }.
+   * Step 2 of registration — verify 6-digit OTP, create account, return JWT.
+   * payload = { email, code }
    */
-  registerConfirmOTP: (email, code) =>
-    apiFetch('/auth/register/confirm-otp', {
+  registerVerify: (payload) =>
+    apiFetch('/auth/register/verify', {
       method: 'POST',
-      body: JSON.stringify({ email, code }),
+      body: JSON.stringify(payload),
     }),
 
   /**
-   * Register a new user with name, email and password (legacy single-step).
-   * Creates the account immediately and returns { access_token, refresh_token, user }.
+   * Login with email and password — returns { access_token, refresh_token, user }
+   * payload = { email, password }
    */
-  register: (fullName, email, phone, password) =>
-    apiFetch('/auth/register', {
+  login: (payload) =>
+    apiFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({
-        full_name: fullName,
-        email: email || undefined,
-        phone: phone || undefined,
-        password,
-      }),
+      body: JSON.stringify(payload),
     }),
 
   /**
-   * Log in or register a user after successful Firebase verification (email or phone).
+   * Legacy Firebase login (kept for backward compat)
    */
   loginFirebase: (payload) =>
     apiFetch('/auth/login/firebase', {
@@ -146,66 +142,9 @@ export const AuthAPI = {
     }),
 
   /**
-   * Send a 6-digit OTP to the given email via Resend.
-   * payload = { email, purpose, full_name? }
-   * purpose = 'login' | 'registration'
-   */
-  sendOTP: (payload) =>
-    apiFetch('/auth/send-otp', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  /**
-   * Verify OTP and return JWT tokens + user.
-   * payload = { email, code, purpose, full_name? }
-   */
-  verifyOTP: (payload) =>
-    apiFetch('/auth/verify-otp', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  /**
-   * Email + password login — returns { access_token, refresh_token, user }
-   */
-  loginPassword: (identifier, password) =>
-    apiFetch('/auth/login/password', {
-      method: 'POST',
-      body: JSON.stringify({ identifier, password }),
-    }),
-
-  /**
-   * OTP login — returns { access_token, refresh_token }
-   */
-  loginOTP: (channel, contact, code) =>
-    apiFetch('/auth/login/otp', {
-      method: 'POST',
-      body: JSON.stringify({ channel, contact, code }),
-    }),
-
-  /**
    * Get current user profile (requires auth token)
    */
   getMe: () => apiFetch('/auth/me'),
-
-  /**
-   * Request password reset OTP
-   */
-  requestReset: (channel, contact) =>
-    apiFetch('/auth/password/reset', {
-      method: 'POST',
-      body: JSON.stringify({ channel, contact }),
-    }),
-
-  /**
-   * Confirm password reset with OTP + new password
-   */
-  confirmReset: (channel, contact, code, newPassword) =>
-    apiFetch('/auth/password/confirm', {
-      method: 'POST',
-      body: JSON.stringify({ channel, contact, code, new_password: newPassword }),
-    }),
 
   /**
    * Logout (clears local tokens)

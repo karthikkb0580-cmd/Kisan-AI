@@ -3778,8 +3778,9 @@ html.dark-theme .text-slate-600,
   letter-spacing: 0.35em;
 }
 
-/* Eye toggle button */
-.auth-eye-btn {
+/* Eye toggle button (used in password fields) */
+.auth-eye-btn,
+.auth-pw-toggle {
   position: absolute;
   right: 0.85rem;
   background: none;
@@ -3789,10 +3790,24 @@ html.dark-theme .text-slate-600,
   display: flex;
   align-items: center;
   transition: color 0.15s ease;
+  padding: 0;
 }
 
-.auth-eye-btn:hover {
+.auth-eye-btn:hover,
+.auth-pw-toggle:hover {
   color: #22c55e;
+}
+
+/* Field hint text below an input */
+.auth-field-hint {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-weight: 500;
+  margin-top: 0.1rem;
+}
+
+.dark-theme .auth-field-hint {
+  color: #64748b;
 }
 
 /* Forgot / link button */

@@ -8,7 +8,7 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
-        description: "Your Google Gemini API Key for crop diagnosis (get free key at aistudio.google.com)"
+        description: "Your Google Gemini API Key (get free key at aistudio.google.com)"
 
       - key: JWT_SECRET
         generateValue: true
@@ -18,15 +18,16 @@ services:
         sync: false
         description: "Optional: PostgreSQL URL (e.g. from Supabase/Neon) for persistent storage. Leave blank to use SQLite."
 
-      # ── Email / OTP Delivery via Gmail SMTP ──────────────────────────────────
-      - key: EMAIL_PROVIDER
-        value: gmail
-        description: "Email provider — set to gmail (uses GMAIL_USER + GMAIL_APP_PASSWORD below)"
-
+      # ── Email / OTP Delivery via Gmail SMTP ────────────────────────────────
       - key: GMAIL_USER
         sync: false
-        description: "Your Gmail address — e.g. opkarthik2005@gmail.com"
+        description: "Your Gmail address used to send OTP emails — e.g. yourname@gmail.com"
 
       - key: GMAIL_APP_PASSWORD
         sync: false
-        description: "16-char Gmail App Password (NOT your regular Gmail password). Create at myaccount.google.com/apppasswords"
+        description: "16-char Gmail App Password (NOT your regular password). Create at myaccount.google.com/apppasswords"
+
+      # ── CORS ───────────────────────────────────────────────────────────────
+      - key: ALLOWED_ORIGINS
+        sync: false
+        description: "Comma-separated list of allowed frontend origins, e.g. https://your-app.vercel.app"
