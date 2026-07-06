@@ -3,15 +3,20 @@ import { X, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, RefreshCw } 
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
 import { AuthAPI, TokenStore } from '../../services/api'
+import { supabase } from '../../services/supabase'
 
 /**
  * AuthModal
- * 
- * LOGIN  tab: Email + Password → immediate sign-in
- * REGISTER tab:
- *   Step 1 — Full Name + Email + Password → POST /auth/register/send-otp
- *   Step 2 — Enter 6-digit OTP from email  → POST /auth/register/verify
- *   Step 3 — Success, redirect to dashboard
+ *
+ * LOGIN tab:
+ *   Email + Password → POST /auth/login (our backend, unchanged)
+ *
+ * REGISTER (Get Started) tab:
+ *   Step 1 — Full Name + Email + Password → supabase.auth.signInWithOtp({ email })
+ *   Step 2 — 6-digit OTP from email      → supabase.auth.verifyOtp(...)
+ *   Step 3 — Send verified token to backend → POST /auth/register/supabase → JWT
+ *
+ * Supabase sends the OTP email — no SMTP config needed, works everywhere.
  */
 export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) {
   const { language, setUser } = useFarmvestStore()
@@ -52,8 +57,8 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   // Resend countdown
   useEffect(() => {
     if (countdown <= 0) return
-    const t = setTimeout(() => setCountdown(c => c - 1), 1000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(timer)
   }, [countdown])
 
   const resetAll = () => {
@@ -62,9 +67,21 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     setError(''); setSuccess(''); setShowPw(false)
   }
 
-  const switchTab = (newTab) => {
-    setTab(newTab)
-    resetAll()
+  const switchTab = (newTab) => { setTab(newTab); resetAll() }
+
+  // Helper — set user state from backend response
+  const applyUserSession = (data) => {
+    TokenStore.set(data.access_token, data.refresh_token)
+    setUser({
+      id:            data.user.id,
+      name:          data.user.full_name,
+      email:         data.user.email || '',
+      phone:         data.user.phone || '',
+      avatar:        data.user.full_name?.slice(0, 2).toUpperCase() || '??',
+      emailVerified: data.user.email_verified,
+      phoneVerified: data.user.phone_verified,
+      createdAt:     data.user.created_at,
+    })
   }
 
   // ── LOGIN: Email + Password ────────────────────────────────────────────────
@@ -78,17 +95,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     setLoading(true)
     try {
       const data = await AuthAPI.login({ email: email.trim(), password })
-      TokenStore.set(data.access_token, data.refresh_token)
-      setUser({
-        id:            data.user.id,
-        name:          data.user.full_name,
-        email:         data.user.email || '',
-        phone:         data.user.phone || '',
-        avatar:        data.user.full_name?.slice(0, 2).toUpperCase() || '??',
-        emailVerified: data.user.email_verified,
-        phoneVerified: data.user.phone_verified,
-        createdAt:     data.user.created_at,
-      })
+      applyUserSession(data)
       if (onSuccess) onSuccess('dashboard')
     } catch (err) {
       setError(err?.message || 'Invalid email or password. Please try again.')
@@ -97,27 +104,37 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── REGISTER Step 1: Send OTP ──────────────────────────────────────────────
+  // ── REGISTER Step 1: Send OTP via Supabase ─────────────────────────────────
   const handleSendOTP = async (e) => {
     e.preventDefault()
     setError(''); setSuccess('')
 
-    if (!name.trim())     { setError('Please enter your full name.'); return }
-    if (!email.trim())    { setError('Please enter your email address.'); return }
+    if (!name.trim())        { setError('Please enter your full name.'); return }
+    if (!email.trim())       { setError('Please enter your email address.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
 
     setLoading(true)
     try {
-      const data = await AuthAPI.registerSendOTP({
-        full_name: name.trim(),
-        email:     email.trim(),
-        password,
+      const { error: sbError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+          // Tell Supabase not to redirect — we handle everything ourselves
+          emailRedirectTo: undefined,
+        },
       })
-      setSuccess(data.detail || `Verification code sent to ${email.trim()}.`)
+
+      if (sbError) {
+        // Rate limit message from Supabase is "For security purposes, you can only request this after X seconds"
+        setError(sbError.message || 'Failed to send verification code. Please try again.')
+        return
+      }
+
+      setSuccess(`Verification code sent to ${email.trim()}. Check your inbox.`)
       setStep(2)
       setCountdown(60)
     } catch (err) {
-      setError(err?.message || 'Failed to send verification code. Please try again.')
+      setError('Failed to send verification code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -129,21 +146,24 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     setError(''); setSuccess('')
     setLoading(true)
     try {
-      const data = await AuthAPI.registerSendOTP({
-        full_name: name.trim(),
-        email:     email.trim(),
-        password,
+      const { error: sbError } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: { shouldCreateUser: true },
       })
+      if (sbError) {
+        setError(sbError.message || 'Resend failed. Please try again.')
+        return
+      }
       setSuccess('New code sent! Check your inbox.')
       setCountdown(60)
     } catch (err) {
-      setError(err?.message || 'Resend failed. Please try again.')
+      setError('Resend failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── REGISTER Step 2: Verify OTP ───────────────────────────────────────────
+  // ── REGISTER Step 2: Verify OTP and create account ────────────────────────
   const handleVerifyOTP = async (e) => {
     e.preventDefault()
     setError('')
@@ -155,24 +175,29 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
     setLoading(true)
     try {
-      const data = await AuthAPI.registerVerify({
+      // Step A: Verify the OTP with Supabase
+      const { data: sbData, error: sbError } = await supabase.auth.verifyOtp({
         email: email.trim(),
-        code:  code.trim(),
+        token: code.trim(),
+        type:  'email',
       })
-      TokenStore.set(data.access_token, data.refresh_token)
-      setUser({
-        id:            data.user.id,
-        name:          data.user.full_name,
-        email:         data.user.email || '',
-        phone:         data.user.phone || '',
-        avatar:        data.user.full_name?.slice(0, 2).toUpperCase() || '??',
-        emailVerified: data.user.email_verified,
-        phoneVerified: data.user.phone_verified,
-        createdAt:     data.user.created_at,
+
+      if (sbError || !sbData?.session?.access_token) {
+        setError(sbError?.message || 'Invalid or expired code. Please try again.')
+        return
+      }
+
+      // Step B: Send verified Supabase token to our backend to create the account
+      const data = await AuthAPI.registerSupabase({
+        supabase_token: sbData.session.access_token,
+        full_name:      name.trim(),
+        password,
       })
+
+      applyUserSession(data)
       if (onSuccess) onSuccess('dashboard')
     } catch (err) {
-      setError(err?.message || 'Invalid or expired code. Please try again.')
+      setError(err?.message || 'Verification failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -290,12 +315,12 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
           )}
 
           {/* ════════════════════════════════════════════
-              REGISTER TAB — STEP 1: Details form
+              REGISTER TAB — STEP 1: Details + send OTP
           ════════════════════════════════════════════ */}
           {tab === 'register' && step === 1 && (
             <>
               <p className="auth-form-subtitle">
-                Create your account. We'll verify your email with a 6-digit code.
+                Create your account. We'll send a 6-digit code to verify your email.
               </p>
 
               {error   && <div className="auth-error">{error}</div>}
@@ -429,7 +454,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                 <button id="btn-otp-verify" type="submit" className="auth-submit-btn" disabled={loading}>
                   {loading
                     ? <span className="auth-loading-row"><span className="auth-spinner" /> Verifying…</span>
-                    : <span className="auth-loading-row">Verify & Create Account <ArrowRight size={15} /></span>}
+                    : <span className="auth-loading-row">Verify &amp; Create Account <ArrowRight size={15} /></span>}
                 </button>
               </form>
 

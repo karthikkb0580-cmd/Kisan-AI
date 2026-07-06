@@ -326,55 +326,78 @@ def logout(user_id: int = Depends(get_current_user_id)):
     return {"detail": "Logged out successfully."}
 
 
-# ── Legacy Firebase endpoint (kept for compatibility) ─────────────────────────
 
-class _FirebaseLegacy(BaseModel):
-    phone:     Optional[str] = None
-    email:     Optional[str] = None
-    full_name: Optional[str] = None
+# ── POST /register/supabase — Supabase OTP verified registration ──────────────
+
+class SupabaseRegisterRequest(BaseModel):
+    supabase_token: str
+    full_name:      str = Field(..., min_length=2, max_length=100)
+    password:       str = Field(..., min_length=6)
 
 
-@router.post("/login/firebase")
-def login_firebase(req: _FirebaseLegacy, request: Request):
-    """Legacy Firebase endpoint — kept so old clients don't break."""
+@router.post("/register/supabase")
+def register_supabase(req: SupabaseRegisterRequest, request: Request):
+    """
+    Called after Supabase verifies the email OTP on the frontend.
+    Decodes the Supabase JWT to extract the verified email,
+    creates the user in our DB, and returns our own JWT tokens.
+
+    Required env var: SUPABASE_JWT_SECRET
+    (Supabase Dashboard → Settings → API → JWT Secret)
+    """
+    import os as _os
+    import jwt as pyjwt
+
     ip = get_client_ip(request)
     limit_by_ip(request)
 
-    if req.email:
-        user = database.get_user_by_email(req.email)
-        if not user:
-            uid = database.create_user(
-                full_name=req.full_name or "Farmer",
-                email=req.email,
-                phone=None,
-                password_hash=None,
-            )
-            database.update_user_verification(uid, email_verified=True)
-            user = database.get_user_by_id(uid)
-            log_register(email=req.email, ip=ip)
-        else:
-            if not user.get("email_verified"):
-                database.update_user_verification(user["id"], email_verified=True)
-                user = database.get_user_by_id(user["id"])
-    elif req.phone:
-        user = database.get_user_by_phone(req.phone)
-        if not user:
-            uid = database.create_user(
-                full_name=req.full_name or "Farmer",
-                phone=req.phone,
-                email=None,
-                password_hash=None,
-            )
-            database.update_user_verification(uid, phone_verified=True)
-            user = database.get_user_by_id(uid)
-            log_register(email=req.phone, ip=ip)
-        else:
-            if not user.get("phone_verified"):
-                database.update_user_verification(user["id"], phone_verified=True)
-                user = database.get_user_by_id(user["id"])
-    else:
-        raise HTTPException(400, "Either email or phone must be provided.")
+    supabase_jwt_secret = _os.environ.get("SUPABASE_JWT_SECRET", "").strip()
+    if not supabase_jwt_secret:
+        raise HTTPException(
+            500,
+            "Server is missing SUPABASE_JWT_SECRET. "
+            "Add it in Render → Environment variables."
+        )
 
-    tokens = create_tokens(user["id"])
-    log_login_success(email=user.get("email") or user.get("phone") or "unknown", ip=ip)
+    # Verify and decode the Supabase JWT
+    try:
+        payload = pyjwt.decode(
+            req.supabase_token,
+            supabase_jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+        email = (payload.get("email") or "").strip().lower()
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(400, "Verification session expired. Please request a new code.")
+    except Exception:
+        raise HTTPException(400, "Invalid verification token. Please try again.")
+
+    if not email:
+        raise HTTPException(400, "Could not extract email from verification token.")
+
+    # Check if already registered
+    if database.get_user_by_email(email):
+        raise HTTPException(400, "An account with this email already exists. Please sign in.")
+
+    # Create the user with hashed password
+    pw_hash = hash_password(req.password)
+    uid = database.create_user(
+        full_name=req.full_name.strip(),
+        email=email,
+        phone=None,
+        password_hash=pw_hash,
+    )
+    if not uid:
+        raise HTTPException(500, "Account creation failed. Please try again.")
+
+    database.update_user_verification(uid, email_verified=True)
+    user = database.get_user_by_id(uid)
+
+    log_register(email=email, ip=ip)
+    logger.info(f"[AUTH] Supabase OTP — new user registered: {email!r}")
+
+    tokens = create_tokens(uid)
+    log_login_success(email=email, ip=ip)
     return {**tokens, "user": _user_response(user)}
+
