@@ -18,14 +18,19 @@ services:
         sync: false
         description: "Optional: PostgreSQL URL (e.g. from Supabase/Neon) for persistent storage. Leave blank to use SQLite."
 
-      # ── Email / OTP Delivery via Gmail SMTP ────────────────────────────────
-      - key: GMAIL_USER
+      # ── OTP Email Delivery via Resend (FREE — 3,000 emails/month) ───────────
+      # Sign up at https://resend.com → API Keys → Create Key → paste here
+      # Works on Render free tier — uses HTTPS, never blocked unlike SMTP
+      - key: RESEND_API_KEY
         sync: false
-        description: "Your Gmail address used to send OTP emails — e.g. yourname@gmail.com"
+        description: "Resend API key for OTP email delivery. Get free key at resend.com (3000 emails/month free)"
 
-      - key: GMAIL_APP_PASSWORD
+      # Optional: customize the From address.
+      # On Resend free plan, use: Krishi AI <onboarding@resend.dev>
+      # If you add your own domain in Resend, use: Krishi AI <noreply@yourdomain.com>
+      - key: RESEND_FROM
         sync: false
-        description: "16-char Gmail App Password (NOT your regular password). Create at myaccount.google.com/apppasswords"
+        description: "From address for OTP emails. Default: Krishi AI <onboarding@resend.dev>"
 
       # ── CORS ───────────────────────────────────────────────────────────────
       - key: ALLOWED_ORIGINS

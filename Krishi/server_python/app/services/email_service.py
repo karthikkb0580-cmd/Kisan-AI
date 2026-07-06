@@ -1,36 +1,42 @@
 """
-email_service.py — Krishi AI Email Delivery
-============================================
-Sends OTP emails using Gmail SMTP (credentials from env vars).
+email_service.py — Krishi AI Email Delivery via Resend
+=======================================================
+Uses Resend's FREE HTTP API instead of Gmail SMTP.
 
-• Credentials are read at SEND time (not import time) so Render env vars work
-• SMTP runs in a thread-pool executor so it never blocks the FastAPI event loop
-• Falls back to console-log in dev mode when credentials are not set
-• Beautiful HTML email template included
+Why Resend instead of Gmail SMTP?
+  - Render's free tier BLOCKS outbound SMTP ports (465 / 587)
+  - Resend uses plain HTTPS → never blocked, works everywhere
+  - 3,000 emails / month free, no credit card required
+  - Sign up: https://resend.com  → API Keys → Create Key
 
-Configure in Render dashboard or .env:
-  GMAIL_USER=your@gmail.com
-  GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx   (16-char App Password)
+Setup (one-time):
+  1. Go to https://resend.com and sign up (free)
+  2. Go to API Keys → Create API Key → copy it
+  3. Add it to Render Dashboard → Environment → RESEND_API_KEY
+  4. Set RESEND_FROM to something like: Krishi AI <onboarding@resend.dev>
+     (Use onboarding@resend.dev on the free plan — no domain needed!)
 
-Get App Password: https://myaccount.google.com/apppasswords
+Local dev: set RESEND_API_KEY in server_python/.env
 """
 
 import os
-import smtplib
 import logging
 import threading
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import Optional
 
 logger = logging.getLogger("krishi.email")
 
+# Resend free API endpoint
+_RESEND_API = "https://api.resend.com/emails"
+
 
 def _get_credentials():
-    """Read credentials fresh from env at call time (not import time)."""
-    user = os.environ.get("GMAIL_USER", "").strip()
-    password = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
-    return user, password
+    """Read Resend API key from env at call time (safe for Render)."""
+    api_key  = os.environ.get("RESEND_API_KEY", "").strip()
+    from_addr = os.environ.get(
+        "RESEND_FROM",
+        "Krishi AI <onboarding@resend.dev>"
+    ).strip()
+    return api_key, from_addr
 
 
 # ── OTP Email HTML Template ───────────────────────────────────────────────────
@@ -103,10 +109,12 @@ def _otp_html(otp: str, purpose: str) -> str:
 </html>"""
 
 
-# ── Core SMTP send (runs in a thread) ────────────────────────────────────────
+# ── Core HTTP send via Resend API ─────────────────────────────────────────────
 
-def _smtp_send(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_password: str) -> bool:
-    """Blocking SMTP call — always run via send_otp_email() which uses a thread."""
+def _resend_send(to_email: str, otp: str, purpose: str, api_key: str, from_addr: str) -> bool:
+    """Send email via Resend HTTP API — works on Render free tier (plain HTTPS)."""
+    import httpx
+
     subject_map = {
         "registration":   "Verify Your Krishi AI Account",
         "login":          "Your Krishi AI Sign-In Code",
@@ -114,92 +122,85 @@ def _smtp_send(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_pas
     }
     subject = subject_map.get(purpose, "Your Krishi AI Verification Code")
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Krishi AI <{gmail_user}>"
-    msg["To"]      = to_email
-
-    plain = (
+    plain_text = (
         f"Your Krishi AI verification code is: {otp}\n\n"
         "This code expires in 10 minutes. Do not share it with anyone."
     )
-    msg.attach(MIMEText(plain, "plain", "utf-8"))
-    msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
 
-    # Try SSL on 465 first, fallback to STARTTLS on 587
-    for attempt, use_ssl, port in [(1, True, 465), (2, False, 587)]:
-        try:
-            if use_ssl:
-                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=25)
-            else:
-                server = smtplib.SMTP("smtp.gmail.com", port, timeout=25)
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
+    payload = {
+        "from":    from_addr,
+        "to":      [to_email],
+        "subject": subject,
+        "html":    _otp_html(otp, purpose),
+        "text":    plain_text,
+    }
 
-            server.login(gmail_user, gmail_password)
-            server.sendmail(gmail_user, to_email, msg.as_string())
-            server.quit()
-            logger.info(f"[EMAIL] OTP sent to {to_email!r} via Gmail port {port} (purpose={purpose})")
+    try:
+        resp = httpx.post(
+            _RESEND_API,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type":  "application/json",
+            },
+            json=payload,
+            timeout=20,
+        )
+
+        if resp.status_code in (200, 201):
+            logger.info(f"[EMAIL] OTP sent via Resend to {to_email!r} (purpose={purpose})")
             return True
+        else:
+            logger.error(
+                f"[EMAIL] Resend API error {resp.status_code}: {resp.text[:300]}"
+            )
+            return False
 
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"[EMAIL] Gmail auth FAILED — check GMAIL_APP_PASSWORD is a 16-char App Password (not your Gmail login): {e}")
-            return False  # No point retrying if auth fails
-
-        except smtplib.SMTPException as e:
-            logger.warning(f"[EMAIL] SMTP attempt {attempt} (port={port}) failed: {e}")
-            if attempt == 2:
-                logger.error("[EMAIL] All SMTP attempts exhausted.")
-                return False
-
-        except Exception as e:
-            logger.error(f"[EMAIL] Unexpected error on attempt {attempt}: {e}")
-            if attempt == 2:
-                return False
-
-    return False
+    except Exception as e:
+        logger.error(f"[EMAIL] Resend request failed: {e}")
+        return False
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
     """
-    Send an OTP email using Gmail SMTP.
-    - Reads credentials fresh from env at call time (safe for Render)
-    - Runs SMTP in a thread so it never blocks FastAPI's event loop
+    Send an OTP email using the Resend HTTP API.
+    - Reads RESEND_API_KEY from env at call time (safe for Render)
+    - Runs in a thread so it never blocks FastAPI's async event loop
     - Returns True on success, False on failure
+    - Falls back to console-log in dev mode when no API key is set
     """
-    gmail_user, gmail_password = _get_credentials()
+    api_key, from_addr = _get_credentials()
 
-    if not gmail_user or not gmail_password:
-        # Dev-mode: print to console so local dev still works without credentials
+    if not api_key:
+        # Dev-mode: print OTP to console so local dev works without credentials
         logger.warning(
-            f"[EMAIL DEV-MODE] No GMAIL credentials set. "
+            f"[EMAIL DEV-MODE] No RESEND_API_KEY set. "
             f"OTP for {to_email!r} (purpose={purpose}): {otp}"
         )
         print(f"\n{'='*60}")
         print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
+        print(f"  → Set RESEND_API_KEY in .env to enable real emails")
         print(f"{'='*60}\n")
         return True  # Don't block dev — pretend it worked
 
-    # Run blocking SMTP in a thread to avoid blocking the async event loop
+    # Run HTTP call in a thread to avoid blocking the async event loop
     result = [False]
     error  = [None]
 
     def _worker():
         try:
-            result[0] = _smtp_send(to_email, otp, purpose, gmail_user, gmail_password)
+            result[0] = _resend_send(to_email, otp, purpose, api_key, from_addr)
         except Exception as e:
             error[0] = e
             result[0] = False
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
-    thread.join(timeout=35)  # 35s max — Render requests timeout at ~60s
+    thread.join(timeout=30)
 
     if thread.is_alive():
-        logger.error("[EMAIL] SMTP thread timed out after 35s")
+        logger.error("[EMAIL] Resend HTTP thread timed out after 30s")
         return False
 
     if error[0]:
