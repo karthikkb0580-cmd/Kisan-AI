@@ -16,23 +16,29 @@ services:
 
       - key: DATABASE_URL
         sync: false
-        description: "Optional: PostgreSQL URL (e.g. from Supabase/Neon) for persistent storage. Leave blank to use SQLite."
+        description: "Optional: PostgreSQL URL for persistent storage. Leave blank to use SQLite."
 
-      # ── OTP Email Delivery via Resend (FREE — 3,000 emails/month) ───────────
-      # Sign up at https://resend.com → API Keys → Create Key → paste here
-      # Works on Render free tier — uses HTTPS, never blocked unlike SMTP
+      # ── OTP Email Delivery — Set ONE of the following ──────────────────────
+      #
+      # OPTION A (Recommended for Render): Resend free HTTP API
+      #   1. Sign up free at https://resend.com
+      #   2. Go to API Keys → Create Key → copy the key (starts with re_)
+      #   3. Paste it below. No domain verification needed for onboarding@resend.dev
       - key: RESEND_API_KEY
         sync: false
-        description: "Resend API key for OTP email delivery. Get free key at resend.com (3000 emails/month free)"
+        description: "Resend API key for OTP emails (free, 3000/month). Get at resend.com. RECOMMENDED for Render."
 
-      # Optional: customize the From address.
-      # On Resend free plan, use: Krishi AI <onboarding@resend.dev>
-      # If you add your own domain in Resend, use: Krishi AI <noreply@yourdomain.com>
-      - key: RESEND_FROM
+      # OPTION B: Gmail SMTP (works locally; may be unreliable on Render free tier)
+      #   Get App Password at: https://myaccount.google.com/apppasswords
+      - key: GMAIL_USER
         sync: false
-        description: "From address for OTP emails. Default: Krishi AI <onboarding@resend.dev>"
+        description: "Gmail address for sending OTP emails (e.g. yourname@gmail.com)"
+
+      - key: GMAIL_APP_PASSWORD
+        sync: false
+        description: "16-char Gmail App Password (NOT your Gmail login password)"
 
       # ── CORS ───────────────────────────────────────────────────────────────
       - key: ALLOWED_ORIGINS
         sync: false
-        description: "Comma-separated list of allowed frontend origins, e.g. https://your-app.vercel.app"
+        description: "Comma-separated frontend origins, e.g. https://your-app.vercel.app"

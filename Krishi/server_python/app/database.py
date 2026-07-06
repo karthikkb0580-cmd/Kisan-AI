@@ -9,8 +9,6 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 IS_POSTGRES = DATABASE_URL is not None and DATABASE_URL.startswith("postgresql://")
 
 if IS_POSTGRES:
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
     print("[DB] Using PostgreSQL database connection.")
 else:
     print("[DB] Using local SQLite database connection.")
@@ -20,6 +18,13 @@ DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "krishi.db")
 
 def get_db_connection():
     if IS_POSTGRES:
+        try:
+            import psycopg2
+        except ImportError:
+            raise RuntimeError(
+                "psycopg2 is required for PostgreSQL but is not installed. "
+                "Either install it or remove DATABASE_URL to use SQLite."
+            )
         conn = psycopg2.connect(DATABASE_URL)
         return conn
     else:
@@ -29,6 +34,10 @@ def get_db_connection():
 
 def get_cursor(conn):
     if IS_POSTGRES:
+        try:
+            from psycopg2.extras import RealDictCursor
+        except ImportError:
+            raise RuntimeError("psycopg2 not installed")
         return conn.cursor(cursor_factory=RealDictCursor)
     else:
         return conn.cursor()

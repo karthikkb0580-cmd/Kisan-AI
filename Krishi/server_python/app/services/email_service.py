@@ -1,22 +1,20 @@
 """
-email_service.py — Krishi AI Email Delivery via Resend
-=======================================================
-Uses Resend's FREE HTTP API instead of Gmail SMTP.
+email_service.py — Krishi AI OTP Email Delivery
+================================================
 
-Why Resend instead of Gmail SMTP?
-  - Render's free tier BLOCKS outbound SMTP ports (465 / 587)
-  - Resend uses plain HTTPS → never blocked, works everywhere
-  - 3,000 emails / month free, no credit card required
-  - Sign up: https://resend.com  → API Keys → Create Key
+Supports two FREE methods (auto-detected from env vars):
 
-Setup (one-time):
-  1. Go to https://resend.com and sign up (free)
-  2. Go to API Keys → Create API Key → copy it
-  3. Add it to Render Dashboard → Environment → RESEND_API_KEY
-  4. Set RESEND_FROM to something like: Krishi AI <onboarding@resend.dev>
-     (Use onboarding@resend.dev on the free plan — no domain needed!)
+METHOD 1 — Resend HTTP API (RECOMMENDED for Render)
+  • Free: 3,000 emails/month, no credit card
+  • Sign up: https://resend.com → API Keys → Create Key
+  • Set env var: RESEND_API_KEY=re_xxxxxxxxxxxx
+  • Works on ALL cloud servers (plain HTTPS, never blocked)
 
-Local dev: set RESEND_API_KEY in server_python/.env
+METHOD 2 — Gmail SMTP (works locally, may be blocked on Render free)
+  • Set env vars: GMAIL_USER and GMAIL_APP_PASSWORD
+  • App Password: https://myaccount.google.com/apppasswords
+
+Priority: Resend > Gmail > Console (dev-mode fallback)
 """
 
 import os
@@ -24,19 +22,6 @@ import logging
 import threading
 
 logger = logging.getLogger("krishi.email")
-
-# Resend free API endpoint
-_RESEND_API = "https://api.resend.com/emails"
-
-
-def _get_credentials():
-    """Read Resend API key from env at call time (safe for Render)."""
-    api_key  = os.environ.get("RESEND_API_KEY", "").strip()
-    from_addr = os.environ.get(
-        "RESEND_FROM",
-        "Krishi AI <onboarding@resend.dev>"
-    ).strip()
-    return api_key, from_addr
 
 
 # ── OTP Email HTML Template ───────────────────────────────────────────────────
@@ -67,8 +52,7 @@ def _otp_html(otp: str, purpose: str) -> str:
                        padding:36px 48px;text-align:center;">
               <span style="display:inline-block;background:rgba(255,255,255,0.18);
                            border-radius:14px;padding:10px 18px;
-                           font-size:26px;font-weight:900;color:#fff;
-                           letter-spacing:-0.5px;">
+                           font-size:26px;font-weight:900;color:#fff;">
                 &#127807; Krishi <span style="color:#bbf7d0;">AI</span>
               </span>
             </td>
@@ -109,11 +93,53 @@ def _otp_html(otp: str, purpose: str) -> str:
 </html>"""
 
 
-# ── Core HTTP send via Resend API ─────────────────────────────────────────────
+# ── Method 1: Resend HTTP API ─────────────────────────────────────────────────
 
-def _resend_send(to_email: str, otp: str, purpose: str, api_key: str, from_addr: str) -> bool:
-    """Send email via Resend HTTP API — works on Render free tier (plain HTTPS)."""
+def _send_via_resend(to_email: str, otp: str, purpose: str, api_key: str) -> bool:
+    """Send via Resend free HTTP API — works on any cloud server (HTTPS, never blocked)."""
     import httpx
+
+    from_addr = os.environ.get("RESEND_FROM", "Krishi AI <onboarding@resend.dev>").strip()
+
+    subject_map = {
+        "registration":   "Verify Your Krishi AI Account",
+        "login":          "Your Krishi AI Sign-In Code",
+        "password_reset": "Reset Your Krishi AI Password",
+    }
+
+    try:
+        resp = httpx.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type":  "application/json",
+            },
+            json={
+                "from":    from_addr,
+                "to":      [to_email],
+                "subject": subject_map.get(purpose, "Your Krishi AI Code"),
+                "html":    _otp_html(otp, purpose),
+                "text":    f"Your Krishi AI verification code: {otp}\nExpires in 10 minutes.",
+            },
+            timeout=20,
+        )
+        if resp.status_code in (200, 201):
+            logger.info(f"[EMAIL] ✅ Resend delivered OTP to {to_email!r}")
+            return True
+        logger.error(f"[EMAIL] Resend error {resp.status_code}: {resp.text[:200]}")
+        return False
+    except Exception as e:
+        logger.error(f"[EMAIL] Resend request failed: {e}")
+        return False
+
+
+# ── Method 2: Gmail SMTP ──────────────────────────────────────────────────────
+
+def _send_via_gmail(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_password: str) -> bool:
+    """Send via Gmail SMTP — works locally; may be blocked on some cloud servers."""
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
 
     subject_map = {
         "registration":   "Verify Your Krishi AI Account",
@@ -122,89 +148,77 @@ def _resend_send(to_email: str, otp: str, purpose: str, api_key: str, from_addr:
     }
     subject = subject_map.get(purpose, "Your Krishi AI Verification Code")
 
-    plain_text = (
-        f"Your Krishi AI verification code is: {otp}\n\n"
-        "This code expires in 10 minutes. Do not share it with anyone."
-    )
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"Krishi AI <{gmail_user}>"
+    msg["To"]      = to_email
+    msg.attach(MIMEText(f"Your Krishi AI code: {otp}\nExpires in 10 minutes.", "plain", "utf-8"))
+    msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
 
-    payload = {
-        "from":    from_addr,
-        "to":      [to_email],
-        "subject": subject,
-        "html":    _otp_html(otp, purpose),
-        "text":    plain_text,
-    }
-
-    try:
-        resp = httpx.post(
-            _RESEND_API,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type":  "application/json",
-            },
-            json=payload,
-            timeout=20,
-        )
-
-        if resp.status_code in (200, 201):
-            logger.info(f"[EMAIL] OTP sent via Resend to {to_email!r} (purpose={purpose})")
+    for use_ssl, port in [(True, 465), (False, 587)]:
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=25)
+            else:
+                server = smtplib.SMTP("smtp.gmail.com", port, timeout=25)
+                server.ehlo(); server.starttls(); server.ehlo()
+            server.login(gmail_user, gmail_password)
+            server.sendmail(gmail_user, to_email, msg.as_string())
+            server.quit()
+            logger.info(f"[EMAIL] ✅ Gmail delivered OTP to {to_email!r} via port {port}")
             return True
-        else:
-            logger.error(
-                f"[EMAIL] Resend API error {resp.status_code}: {resp.text[:300]}"
-            )
-            return False
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"[EMAIL] Gmail auth failed — check GMAIL_APP_PASSWORD: {e}")
+            return False  # Auth error won't fix itself by retrying
+        except Exception as e:
+            logger.warning(f"[EMAIL] Gmail port {port} failed: {e}")
 
-    except Exception as e:
-        logger.error(f"[EMAIL] Resend request failed: {e}")
-        return False
+    logger.error("[EMAIL] All Gmail attempts exhausted.")
+    return False
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
     """
-    Send an OTP email using the Resend HTTP API.
-    - Reads RESEND_API_KEY from env at call time (safe for Render)
-    - Runs in a thread so it never blocks FastAPI's async event loop
-    - Returns True on success, False on failure
-    - Falls back to console-log in dev mode when no API key is set
+    Send an OTP email. Auto-selects delivery method from env vars:
+      1. RESEND_API_KEY set  → uses Resend HTTP API (recommended for Render)
+      2. GMAIL_USER set      → uses Gmail SMTP
+      3. Neither set         → prints OTP to console (dev mode)
     """
-    api_key, from_addr = _get_credentials()
+    resend_key   = os.environ.get("RESEND_API_KEY", "").strip()
+    gmail_user   = os.environ.get("GMAIL_USER", "").strip()
+    gmail_passwd = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
 
-    if not api_key:
-        # Dev-mode: print OTP to console so local dev works without credentials
-        logger.warning(
-            f"[EMAIL DEV-MODE] No RESEND_API_KEY set. "
-            f"OTP for {to_email!r} (purpose={purpose}): {otp}"
-        )
+    # ── Dev fallback: no credentials configured ───────────────────────────────
+    if not resend_key and not gmail_user:
+        logger.warning(f"[EMAIL DEV] No email credentials set. OTP for {to_email!r}: {otp}")
         print(f"\n{'='*60}")
         print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
-        print(f"  → Set RESEND_API_KEY in .env to enable real emails")
+        print(f"  To enable real emails, set RESEND_API_KEY in Render env vars.")
+        print(f"  Free signup: https://resend.com")
         print(f"{'='*60}\n")
-        return True  # Don't block dev — pretend it worked
+        return True  # Don't block dev flow
 
-    # Run HTTP call in a thread to avoid blocking the async event loop
     result = [False]
-    error  = [None]
 
     def _worker():
-        try:
-            result[0] = _resend_send(to_email, otp, purpose, api_key, from_addr)
-        except Exception as e:
-            error[0] = e
-            result[0] = False
+        # Priority 1: Resend (best for cloud/Render)
+        if resend_key:
+            result[0] = _send_via_resend(to_email, otp, purpose, resend_key)
+            if result[0]:
+                return
+
+        # Priority 2: Gmail SMTP (fallback)
+        if gmail_user and gmail_passwd:
+            result[0] = _send_via_gmail(to_email, otp, purpose, gmail_user, gmail_passwd)
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
-    thread.join(timeout=30)
+    thread.join(timeout=35)
 
     if thread.is_alive():
-        logger.error("[EMAIL] Resend HTTP thread timed out after 30s")
-        return False
-
-    if error[0]:
-        logger.error(f"[EMAIL] Thread error: {error[0]}")
+        logger.error("[EMAIL] Email thread timed out after 35s")
         return False
 
     return result[0]
