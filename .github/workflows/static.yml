@@ -42,17 +42,23 @@ jobs:
           npm run build
         env:
           GITHUB_PAGES: 'true'
-          # ── Render backend URL ──────────────────────────────────────────────
-          # Set this in: GitHub repo → Settings → Secrets → Actions
-          # Value: https://krishi-ai-backend.onrender.com/api/v1
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          # ── Supabase credentials ────────────────────────────────────────────
           # Set these in: GitHub repo → Settings → Secrets → Actions
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # ── Maps (optional) ─────────────────────────────────────────────────
           VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           VITE_TOMTOM_KEY: ${{ secrets.VITE_TOMTOM_KEY }}
+
+      - name: Add SPA 404 fallback
+        run: |
+          cp Krishi/dist/index.html Krishi/dist/404.html
+
+      - name: Fix hardcoded absolute paths in HTML
+        run: |
+          sed -i 's|href="/favicon3.png"|href="/Kisan-AI/favicon3.png"|g' Krishi/dist/index.html
+          sed -i 's|href="/favicon3.png"|href="/Kisan-AI/favicon3.png"|g' Krishi/dist/404.html
+          sed -i 's|content="/app_crops.png"|content="/Kisan-AI/app_crops.png"|g' Krishi/dist/index.html
+          sed -i 's|content="/app_crops.png"|content="/Kisan-AI/app_crops.png"|g' Krishi/dist/404.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
