@@ -24,9 +24,6 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 logger = logging.getLogger("krishi")
 logging.basicConfig(level=logging.INFO)
 
-# Initialize Database (creates tables if missing)
-database.init_db()
-
 # Initialize FastAPI App
 app = FastAPI(
     title="Krishi AI Backend",
@@ -127,6 +124,28 @@ async def _keep_alive_loop():
 
 @app.on_event("startup")
 async def startup_event():
+    # ── Env-var diagnostics (visible in Render logs) ──────────────────────────
+    required = ["DATABASE_URL", "JWT_SECRET", "GEMINI_API_KEY"]
+    missing  = [k for k in required if not os.getenv(k)]
+    if missing:
+        logger.warning(f"[Startup] ⚠️  Missing env vars: {missing} — some features may not work")
+    else:
+        logger.info("[Startup] ✅ All required env vars present")
+
+    # ── Database initialisation (moved here so crash gives a clear log) ───────
+    db_type = "PostgreSQL (Supabase)" if database.IS_POSTGRES else "SQLite (local dev)"
+    logger.info(f"[Startup] Initialising DB: {db_type}")
+    try:
+        database.init_db()
+        logger.info("[Startup] ✅ Database tables ready")
+    except Exception as exc:
+        logger.error(
+            f"[Startup] ❌ DB init FAILED: {exc}\n"
+            "  → Check DATABASE_URL in Render → Environment.\n"
+            "  → Format: postgresql://postgres:PASSWORD@db.REF.supabase.co:5432/postgres"
+        )
+        # Don't crash the server — endpoints that need the DB will return 500
+
     db_type = "PostgreSQL (Supabase)" if database.IS_POSTGRES else "SQLite (local dev)"
     logger.info(f"[Startup] Krishi AI backend running — DB: {db_type}")
     asyncio.create_task(_keep_alive_loop())
