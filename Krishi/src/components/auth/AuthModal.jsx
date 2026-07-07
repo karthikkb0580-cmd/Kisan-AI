@@ -113,6 +113,12 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     if (!email.trim())       { setError('Please enter your email address.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
 
+    // Guard: Supabase not configured (missing env vars)
+    if (!supabase) {
+      setError('Email verification is not configured yet. Please contact support or try again later.')
+      return
+    }
+
     setLoading(true)
     try {
       const { error: sbError } = await supabase.auth.signInWithOtp({
@@ -143,6 +149,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   // ── REGISTER Step 1b: Resend OTP ──────────────────────────────────────────
   const handleResend = async () => {
     if (countdown > 0 || loading) return
+    if (!supabase) { setError('Email verification is not configured.'); return }
     setError(''); setSuccess('')
     setLoading(true)
     try {
@@ -170,6 +177,11 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
     if (code.trim().length !== 6) {
       setError('Please enter the complete 6-digit code.')
+      return
+    }
+
+    if (!supabase) {
+      setError('Email verification is not configured. Please contact support.')
       return
     }
 

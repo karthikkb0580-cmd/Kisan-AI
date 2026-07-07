@@ -20,17 +20,25 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl  = import.meta.env.VITE_SUPABASE_URL  || ''
 const supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-if (!supabaseUrl || !supabaseAnon) {
+// Only initialize if we have a real Supabase project URL.
+// createClient('', '') throws "supabaseUrl is required" and crashes the app.
+const isConfigured =
+  supabaseUrl.includes('.supabase.co') &&
+  supabaseAnon.length > 20
+
+if (!isConfigured) {
   console.warn(
-    '[Supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not set.\n' +
-    'OTP registration will not work until you add these to Krishi/.env'
+    '[Supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not configured.\n' +
+    'OTP registration will be disabled until you set these in GitHub Secrets → VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY'
   )
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnon, {
-  auth: {
-    // Don't persist Supabase session — we use our own JWT after registration
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-})
+export const supabase = isConfigured
+  ? createClient(supabaseUrl, supabaseAnon, {
+      auth: {
+        // Don't persist Supabase session — we use our own JWT after registration
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
+  : null
