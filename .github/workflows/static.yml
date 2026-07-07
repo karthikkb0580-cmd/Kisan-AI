@@ -27,14 +27,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: './Krishi/package-lock.json'
 
       - name: Install dependencies
         run: |
           cd Krishi
-          npm ci
+          npm install --legacy-peer-deps
 
       - name: Build
         run: |
