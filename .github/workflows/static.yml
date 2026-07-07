@@ -1,28 +1,20 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+name: Deploy Krishi AI to GitHub Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
 
 jobs:
-  # Single deploy job since we're just deploying
   deploy:
     environment:
       name: github-pages
@@ -31,29 +23,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: './Krishi/package-lock.json'
+
       - name: Install dependencies
         run: |
           cd Krishi
           npm ci
+
       - name: Build
         run: |
           cd Krishi
           npm run build
         env:
           GITHUB_PAGES: 'true'
+          # ── Render backend URL ──────────────────────────────────────────────
+          # Set this in: GitHub repo → Settings → Secrets → Actions
+          # Value: https://krishi-ai-backend.onrender.com/api/v1
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # ── Supabase credentials ────────────────────────────────────────────
+          # Set these in: GitHub repo → Settings → Secrets → Actions
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          # ── Maps (optional) ─────────────────────────────────────────────────
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_TOMTOM_KEY: ${{ secrets.VITE_TOMTOM_KEY }}
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload build output directory
           path: './Krishi/dist'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

@@ -1,17 +1,22 @@
 /**
  * Krishi AI — Backend API Service
- * All calls go to http://localhost:8000/api/v1
+ *
+ * URL resolution order:
+ *  1. VITE_API_URL env var (set via GitHub Actions secret — preferred)
+ *  2. Localhost for local development
+ *
+ * To configure production URL:
+ *   GitHub repo → Settings → Secrets → Actions → VITE_API_URL
+ *   Value: https://your-service.onrender.com/api/v1
  */
 
 const getBaseUrl = () => {
+  // Injected at build time by GitHub Actions from the VITE_API_URL secret
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL
   }
-  const hostname = window.location.hostname
-  if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8000/api/v1'
-  }
-  return 'https://krishi-ai-backend.onrender.com/api/v1'
+  // Local development fallback
+  return 'http://localhost:8000/api/v1'
 }
 
 const BASE_URL = getBaseUrl()

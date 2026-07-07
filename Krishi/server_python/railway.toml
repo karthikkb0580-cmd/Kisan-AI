@@ -1,0 +1,14 @@
+# Railway deployment configuration for Krishi AI Backend
+# Docs: https://docs.railway.app/reference/config-as-code
+
+[build]
+# Railway auto-detects the Dockerfile in this directory
+dockerfile = "Dockerfile"
+
+[deploy]
+# Railway injects $PORT automatically — uvicorn reads it
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

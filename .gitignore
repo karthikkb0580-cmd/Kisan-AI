@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.pyc
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.db.bak
+node_modules/
+dist/
+.pytest_cache/
+uploads/*
+!uploads/.gitkeep
