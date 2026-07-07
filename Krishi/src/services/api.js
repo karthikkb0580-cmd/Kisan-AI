@@ -108,13 +108,23 @@ export class APIError extends Error {
 
 export const AuthAPI = {
   /**
-   * Supabase OTP registration — after Supabase verifies the email OTP,
-   * send the Supabase access token + user details to our backend.
-   * payload = { supabase_token, full_name, password }
+   * Step 1 of registration — sends a 6-digit OTP to the user's email via backend.
+   * payload = { full_name, email, password }
+   * Returns { detail, expires_in }
+   */
+  registerSendOTP: (payload) =>
+    apiFetch('/auth/register/send-otp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  /**
+   * Step 2 of registration — verifies the OTP and creates the account.
+   * payload = { email, code }
    * Returns { access_token, refresh_token, user }
    */
-  registerSupabase: (payload) =>
-    apiFetch('/auth/register/supabase', {
+  registerVerify: (payload) =>
+    apiFetch('/auth/register/verify', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),

@@ -1,22 +1,21 @@
-import { useState, useEffect } from 'react'
-import { X, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, ArrowRight, User, Mail, Lock, ShieldCheck, Eye, EyeOff, RefreshCw, CheckCircle } from 'lucide-react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
 import { AuthAPI, TokenStore } from '../../services/api'
-import { supabase } from '../../services/supabase'
 
 /**
- * AuthModal
+ * AuthModal — Professional email authentication
  *
  * LOGIN tab:
- *   Email + Password → POST /auth/login (our backend, unchanged)
+ *   Email + Password → POST /auth/login
  *
  * REGISTER (Get Started) tab:
- *   Step 1 — Full Name + Email + Password → supabase.auth.signInWithOtp({ email })
- *   Step 2 — 6-digit OTP from email      → supabase.auth.verifyOtp(...)
- *   Step 3 — Send verified token to backend → POST /auth/register/supabase → JWT
+ *   Step 1 — Full Name + Email + Password → POST /auth/register/send-otp
+ *   Step 2 — 6-digit OTP from email       → POST /auth/register/verify → JWT
  *
- * Supabase sends the OTP email — no SMTP config needed, works everywhere.
+ * 100% self-contained: uses our own backend, no Supabase, no Firebase.
+ * Works on any deployment — local, Render, Vercel, or GitHub Pages.
  */
 export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) {
   const { language, setUser } = useFarmvestStore()
@@ -29,14 +28,24 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   const [showPw,   setShowPw]   = useState(false)
 
   // OTP step
-  const [step,      setStep]      = useState(1)   // 1 = form, 2 = otp entry
-  const [code,      setCode]      = useState('')
-  const [countdown, setCountdown] = useState(0)
+  const [step,       setStep]      = useState(1)   // 1 = form, 2 = otp entry, 3 = success
+  const [code,       setCode]      = useState('')
+  const [countdown,  setCountdown] = useState(0)
+  const otpRef = useRef(null)
 
-  // UI
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-  const [success, setSuccess] = useState('')
+  // UI state
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
+  const [success,  setSuccess]  = useState('')
+
+  // Password strength
+  const pwStrength = password.length === 0 ? 0
+    : password.length < 6 ? 1
+    : password.length < 10 ? 2
+    : /[A-Z]/.test(password) && /[0-9]/.test(password) ? 4 : 3
+
+  const pwStrengthLabel = ['', 'Weak', 'Fair', 'Good', 'Strong'][pwStrength]
+  const pwStrengthColor = ['', '#ef4444', '#f59e0b', '#22c55e', '#16a34a'][pwStrength]
 
   const t = (key, fallback) =>
     translations[language]?.[key] || translations['en']?.[key] || fallback || key
@@ -54,22 +63,27 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     return () => { document.body.style.overflow = '' }
   }, [])
 
-  // Resend countdown
+  // Countdown timer
   useEffect(() => {
     if (countdown <= 0) return
     const timer = setTimeout(() => setCountdown(c => c - 1), 1000)
     return () => clearTimeout(timer)
   }, [countdown])
 
+  // Auto-focus OTP input when step 2 appears
+  useEffect(() => {
+    if (step === 2) setTimeout(() => otpRef.current?.focus(), 100)
+  }, [step])
+
   const resetAll = () => {
-    setName(''); setEmail(''); setPassword('')
+    setName(''); setEmail(''); setPassword(''); setShowPw(false)
     setCode(''); setStep(1); setCountdown(0)
-    setError(''); setSuccess(''); setShowPw(false)
+    setError(''); setSuccess('')
   }
 
   const switchTab = (newTab) => { setTab(newTab); resetAll() }
 
-  // Helper — set user state from backend response
+  // Apply session from backend response
   const applyUserSession = (data) => {
     TokenStore.set(data.access_token, data.refresh_token)
     setUser({
@@ -84,11 +98,10 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     })
   }
 
-  // ── LOGIN: Email + Password ────────────────────────────────────────────────
+  // ── LOGIN ──────────────────────────────────────────────────────────────────
   const handleLogin = async (e) => {
     e.preventDefault()
     setError(''); setSuccess('')
-
     if (!email.trim())    { setError('Please enter your email address.'); return }
     if (!password.trim()) { setError('Please enter your password.'); return }
 
@@ -104,43 +117,26 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
     }
   }
 
-  // ── REGISTER Step 1: Send OTP via Supabase ─────────────────────────────────
+  // ── REGISTER Step 1: Send OTP via backend ─────────────────────────────────
   const handleSendOTP = async (e) => {
     e.preventDefault()
     setError(''); setSuccess('')
-
     if (!name.trim())        { setError('Please enter your full name.'); return }
     if (!email.trim())       { setError('Please enter your email address.'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters.'); return }
 
-    // Guard: Supabase not configured (missing env vars)
-    if (!supabase) {
-      setError('Email verification is not configured yet. Please contact support or try again later.')
-      return
-    }
-
     setLoading(true)
     try {
-      const { error: sbError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: {
-          shouldCreateUser: true,
-          // Tell Supabase not to redirect — we handle everything ourselves
-          emailRedirectTo: undefined,
-        },
+      await AuthAPI.registerSendOTP({
+        full_name: name.trim(),
+        email:     email.trim(),
+        password,
       })
-
-      if (sbError) {
-        // Rate limit message from Supabase is "For security purposes, you can only request this after X seconds"
-        setError(sbError.message || 'Failed to send verification code. Please try again.')
-        return
-      }
-
-      setSuccess(`Verification code sent to ${email.trim()}. Check your inbox.`)
+      setSuccess(`Verification code sent to ${email.trim()}. Check your inbox and spam folder.`)
       setStep(2)
       setCountdown(60)
     } catch (err) {
-      setError('Failed to send verification code. Please try again.')
+      setError(err?.message || 'Failed to send verification code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -149,70 +145,51 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
   // ── REGISTER Step 1b: Resend OTP ──────────────────────────────────────────
   const handleResend = async () => {
     if (countdown > 0 || loading) return
-    if (!supabase) { setError('Email verification is not configured.'); return }
     setError(''); setSuccess('')
     setLoading(true)
     try {
-      const { error: sbError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { shouldCreateUser: true },
+      await AuthAPI.registerSendOTP({
+        full_name: name.trim(),
+        email:     email.trim(),
+        password,
       })
-      if (sbError) {
-        setError(sbError.message || 'Resend failed. Please try again.')
-        return
-      }
-      setSuccess('New code sent! Check your inbox.')
+      setSuccess('New verification code sent! Check your inbox.')
       setCountdown(60)
     } catch (err) {
-      setError('Resend failed. Please try again.')
+      setError(err?.message || 'Resend failed. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  // ── REGISTER Step 2: Verify OTP and create account ────────────────────────
+  // ── REGISTER Step 2: Verify OTP ───────────────────────────────────────────
   const handleVerifyOTP = async (e) => {
     e.preventDefault()
     setError('')
-
     if (code.trim().length !== 6) {
       setError('Please enter the complete 6-digit code.')
       return
     }
 
-    if (!supabase) {
-      setError('Email verification is not configured. Please contact support.')
-      return
-    }
-
     setLoading(true)
     try {
-      // Step A: Verify the OTP with Supabase
-      const { data: sbData, error: sbError } = await supabase.auth.verifyOtp({
+      const data = await AuthAPI.registerVerify({
         email: email.trim(),
-        token: code.trim(),
-        type:  'email',
+        code:  code.trim(),
       })
-
-      if (sbError || !sbData?.session?.access_token) {
-        setError(sbError?.message || 'Invalid or expired code. Please try again.')
-        return
-      }
-
-      // Step B: Send verified Supabase token to our backend to create the account
-      const data = await AuthAPI.registerSupabase({
-        supabase_token: sbData.session.access_token,
-        full_name:      name.trim(),
-        password,
-      })
-
       applyUserSession(data)
       if (onSuccess) onSuccess('dashboard')
     } catch (err) {
-      setError(err?.message || 'Verification failed. Please try again.')
+      setError(err?.message || 'Invalid or expired code. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  // ── OTP digit input handler ────────────────────────────────────────────────
+  const handleOTPInput = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 6)
+    setCode(digits)
   }
 
   return (
@@ -230,7 +207,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
           <span className="auth-logo-text">Krishi<span className="auth-logo-accent"> AI</span></span>
         </div>
 
-        {/* Tabs — only shown on Step 1 */}
+        {/* Tab bar — only on Step 1 */}
         {step === 1 && (
           <div className="auth-tab-bar">
             <button
@@ -250,9 +227,9 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
         <div className="auth-form-wrap">
 
-          {/* ════════════════════════════════════════════
+          {/* ══════════════════════════════════════════════
               LOGIN TAB
-          ════════════════════════════════════════════ */}
+          ══════════════════════════════════════════════ */}
           {tab === 'login' && (
             <>
               <p className="auth-form-subtitle">
@@ -326,9 +303,9 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
             </>
           )}
 
-          {/* ════════════════════════════════════════════
-              REGISTER TAB — STEP 1: Details + send OTP
-          ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════════
+              REGISTER — STEP 1: Details + send OTP
+          ══════════════════════════════════════════════ */}
           {tab === 'register' && step === 1 && (
             <>
               <p className="auth-form-subtitle">
@@ -376,7 +353,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                   </div>
                 </div>
 
-                {/* Password */}
+                {/* Password with strength meter */}
                 <div className="auth-field">
                   <label htmlFor="reg-password" className="auth-label">Password</label>
                   <div className="auth-input-wrap">
@@ -403,6 +380,24 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                       {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
                     </button>
                   </div>
+
+                  {/* Strength bar */}
+                  {password.length > 0 && (
+                    <div style={{ marginTop: '0.4rem' }}>
+                      <div style={{ display: 'flex', gap: '4px', marginBottom: '4px' }}>
+                        {[1,2,3,4].map(n => (
+                          <div key={n} style={{
+                            flex: 1, height: '3px', borderRadius: '99px',
+                            background: n <= pwStrength ? pwStrengthColor : 'var(--border, #e2e8f0)',
+                            transition: 'background 0.3s ease',
+                          }} />
+                        ))}
+                      </div>
+                      <span style={{ fontSize: '0.65rem', color: pwStrengthColor, fontWeight: 700 }}>
+                        {pwStrengthLabel}
+                      </span>
+                    </div>
+                  )}
                   <span className="auth-field-hint">Must be at least 6 characters</span>
                 </div>
 
@@ -420,9 +415,9 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
             </>
           )}
 
-          {/* ════════════════════════════════════════════
-              REGISTER TAB — STEP 2: OTP entry
-          ════════════════════════════════════════════ */}
+          {/* ══════════════════════════════════════════════
+              REGISTER — STEP 2: OTP entry
+          ══════════════════════════════════════════════ */}
           {tab === 'register' && step === 2 && (
             <div className="otp-step">
               <div className="otp-step-icon">
@@ -436,6 +431,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
 
               {success && (
                 <div className="auth-success" style={{ marginTop: '0.75rem', textAlign: 'center', fontSize: '0.82rem' }}>
+                  <CheckCircle size={14} style={{ marginRight: '5px', verticalAlign: 'middle' }} />
                   {success}
                 </div>
               )}
@@ -448,6 +444,7 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                     <ShieldCheck size={16} className="auth-input-icon" />
                     <input
                       id="otp-code"
+                      ref={otpRef}
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]{6}"
@@ -455,15 +452,24 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
                       placeholder="123456"
                       required
                       value={code}
-                      onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                      onChange={e => handleOTPInput(e.target.value)}
                       className="auth-input"
-                      autoFocus
-                      style={{ letterSpacing: '0.3em', textAlign: 'center', fontSize: '1.3rem', fontWeight: 700 }}
+                      style={{ letterSpacing: '0.35em', textAlign: 'center', fontSize: '1.4rem', fontWeight: 700 }}
                     />
+                  </div>
+                  {/* Progress dots */}
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
+                    {[0,1,2,3,4,5].map(i => (
+                      <div key={i} style={{
+                        width: '8px', height: '8px', borderRadius: '50%',
+                        background: i < code.length ? '#22c55e' : 'var(--border, #e2e8f0)',
+                        transition: 'background 0.2s ease',
+                      }} />
+                    ))}
                   </div>
                 </div>
 
-                <button id="btn-otp-verify" type="submit" className="auth-submit-btn" disabled={loading}>
+                <button id="btn-otp-verify" type="submit" className="auth-submit-btn" disabled={loading || code.length !== 6}>
                   {loading
                     ? <span className="auth-loading-row"><span className="auth-spinner" /> Verifying…</span>
                     : <span className="auth-loading-row">Verify &amp; Create Account <ArrowRight size={15} /></span>}

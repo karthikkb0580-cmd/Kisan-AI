@@ -33,7 +33,16 @@ REFRESH_TTL = 7           # days
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 
 # Allowed Origins for CORS
-ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"]
+ALLOWED_ORIGINS = [
+    # Local dev
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    # GitHub Pages production
+    "https://karthikkb0580-cmd.github.io",
+    # Vercel (add your exact URL here too)
+    "https://kisan-ai-bice.vercel.app",
+]
 env_origins = os.getenv("ALLOWED_ORIGINS")
 if env_origins:
     ALLOWED_ORIGINS.extend([o.strip() for o in env_origins.split(",") if o.strip()])
