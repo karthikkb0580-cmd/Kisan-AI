@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   X, ArrowRight, User, Mail, Lock,
-  ShieldCheck, Eye, EyeOff, RefreshCw, AlertCircle
+  ShieldCheck, Eye, EyeOff, RefreshCw
 } from 'lucide-react'
 import { useFarmvestStore } from '../../store/useFarmvestStore'
 import { translations } from '../../translations'
@@ -321,27 +321,8 @@ export default function AuthModal({ initialTab = 'login', onClose, onSuccess }) 
           {tab === 'register' && step === 1 && (
             <>
               <p className="auth-form-subtitle">
-                {supabaseConfigured
-                  ? 'Create your account. We\'ll email you a 6-digit verification code.'
-                  : 'Create your account. A verification code will be sent to your email.'}
+                Create your account — we'll send a 6-digit verification code to your email.
               </p>
-
-              {/* Supabase not configured warning */}
-              {!supabaseConfigured && (
-                <div style={{
-                  display: 'flex', gap: '8px', alignItems: 'flex-start',
-                  background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.35)',
-                  borderRadius: '10px', padding: '0.65rem 0.85rem', marginBottom: '0.75rem',
-                  fontSize: '0.72rem', color: '#b45309', lineHeight: 1.5,
-                }}>
-                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <span>
-                    Supabase auth not configured. OTP will be sent via backend email service.{' '}
-                    <strong>Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to GitHub Secrets</strong>{' '}
-                    to enable Supabase OTP.
-                  </span>
-                </div>
-              )}
 
               {error   && <div className="auth-error">{error}</div>}
               {success && <div className="auth-success">{success}</div>}

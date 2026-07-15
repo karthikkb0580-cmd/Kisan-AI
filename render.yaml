@@ -46,6 +46,28 @@ services:
       - key: RENDER_EXTERNAL_URL
         sync: false
 
+      # ── Email OTP — Gmail SMTP (RECOMMENDED — sends to ANY email address) ──────
+      # ✅ Works on Render free tier (outbound port 587 is NOT blocked)
+      # ✅ No domain verification needed — sends to all recipient emails
+      # Steps:
+      #   1. Enable 2-Step Verification: https://myaccount.google.com/security
+      #   2. Create App Password: https://myaccount.google.com/apppasswords
+      #   3. Set both values below in Render → Environment
+      - key: GMAIL_USER
+        sync: false          # e.g. yourgmail@gmail.com
+
+      - key: GMAIL_APP_PASSWORD
+        sync: false          # 16-char App Password (remove spaces)
+
+      # ── Email OTP — Resend (FALLBACK — only if not using Gmail) ────────────────
+      # ⚠️  WARNING: Resend's free shared domain (onboarding@resend.dev) ONLY
+      #     delivers to emails verified in your Resend dashboard — not all users.
+      #     You need a custom verified domain to send to arbitrary recipients.
+      # - key: RESEND_API_KEY
+      #   sync: false
+      # - key: RESEND_FROM
+      #   value: "Krishi AI <onboarding@resend.dev>"
+
       # ── Optional ──────────────────────────────────────────────────────────────
       - key: HUGGINGFACE_API_KEY
         sync: false

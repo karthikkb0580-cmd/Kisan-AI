@@ -4,17 +4,17 @@ email_service.py — Krishi AI OTP Email Delivery
 
 Supports two FREE methods (auto-detected from env vars):
 
-METHOD 1 — Resend HTTP API (RECOMMENDED for Render)
+METHOD 1 — Gmail SMTP (PRIMARY)
+  • Set env vars: GMAIL_USER and GMAIL_APP_PASSWORD
+  • App Password: https://myaccount.google.com/apppasswords
+  • Reliable for most production use cases.
+
+METHOD 2 — Resend HTTP API (FALLBACK)
   • Free: 3,000 emails/month, no credit card
   • Sign up: https://resend.com → API Keys → Create Key
   • Set env var: RESEND_API_KEY=re_xxxxxxxxxxxx
-  • Works on ALL cloud servers (plain HTTPS, never blocked)
 
-METHOD 2 — Gmail SMTP (works locally, may be blocked on Render free)
-  • Set env vars: GMAIL_USER and GMAIL_APP_PASSWORD
-  • App Password: https://myaccount.google.com/apppasswords
-
-Priority: Resend > Gmail > Console (dev-mode fallback)
+Priority: Gmail > Resend > Console (dev-mode fallback)
 """
 
 import os
@@ -93,10 +93,74 @@ def _otp_html(otp: str, purpose: str) -> str:
 </html>"""
 
 
-# ── Method 1: Resend HTTP API ─────────────────────────────────────────────────
+# ── Method 1: Gmail SMTP (PRIMARY — sends to ANY email address) ──────────────
+
+def _send_via_gmail(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_password: str) -> bool:
+    """
+    Send via Gmail SMTP.
+    ✅ Works on Render free tier — outbound port 587 is NOT blocked.
+    ✅ Sends to ANY recipient email address without restriction.
+    Requires: GMAIL_USER + GMAIL_APP_PASSWORD env vars.
+    """
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
+    subject_map = {
+        "registration":   "Verify Your Krishi AI Account",
+        "login":          "Your Krishi AI Sign-In Code",
+        "password_reset": "Reset Your Krishi AI Password",
+    }
+    subject = subject_map.get(purpose, "Your Krishi AI Verification Code")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = f"Krishi AI <{gmail_user}>"
+    msg["To"]      = to_email
+    msg.attach(MIMEText(f"Your Krishi AI code: {otp}\nExpires in 10 minutes.", "plain", "utf-8"))
+    msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
+
+    # Try port 587 (STARTTLS) first — preferred on Render
+    # Fall back to port 465 (SSL)
+    for use_ssl, port in [(False, 587), (True, 465)]:
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=25)
+            else:
+                server = smtplib.SMTP("smtp.gmail.com", port, timeout=25)
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+            server.login(gmail_user, gmail_password)
+            server.sendmail(gmail_user, to_email, msg.as_string())
+            server.quit()
+            logger.info(f"[EMAIL] ✅ Gmail SMTP delivered OTP to {to_email!r} via port {port}")
+            return True
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(
+                f"[EMAIL] Gmail auth FAILED — GMAIL_APP_PASSWORD is wrong or missing.\n"
+                f"  1. Enable 2-Step Verification: https://myaccount.google.com/security\n"
+                f"  2. Generate App Password: https://myaccount.google.com/apppasswords\n"
+                f"  3. Set GMAIL_APP_PASSWORD in Render → Environment (no spaces).\n"
+                f"  Error detail: {e}"
+            )
+            return False  # Wrong password won't fix on retry
+        except Exception as e:
+            logger.warning(f"[EMAIL] Gmail port {port} failed: {e}")
+
+    logger.error("[EMAIL] All Gmail SMTP attempts failed.")
+    return False
+
+
+# ── Method 2: Resend HTTP API (FALLBACK) ─────────────────────────────────────
 
 def _send_via_resend(to_email: str, otp: str, purpose: str, api_key: str) -> bool:
-    """Send via Resend free HTTP API — works on any cloud server (HTTPS, never blocked)."""
+    """
+    Send via Resend HTTP API.
+    ⚠️  With the shared 'onboarding@resend.dev' sender, Resend ONLY delivers
+        to email addresses you have verified in your Resend dashboard.
+        To send to ALL recipients, verify a custom domain at resend.com/domains.
+    """
     import httpx
 
     from_addr = os.environ.get("RESEND_FROM", "Krishi AI <onboarding@resend.dev>").strip()
@@ -126,92 +190,55 @@ def _send_via_resend(to_email: str, otp: str, purpose: str, api_key: str) -> boo
         if resp.status_code in (200, 201):
             logger.info(f"[EMAIL] ✅ Resend delivered OTP to {to_email!r}")
             return True
-        logger.error(f"[EMAIL] Resend error {resp.status_code}: {resp.text[:200]}")
+        logger.error(f"[EMAIL] Resend error {resp.status_code}: {resp.text[:300]}")
         return False
     except Exception as e:
         logger.error(f"[EMAIL] Resend request failed: {e}")
         return False
 
 
-# ── Method 2: Gmail SMTP ──────────────────────────────────────────────────────
-
-def _send_via_gmail(to_email: str, otp: str, purpose: str, gmail_user: str, gmail_password: str) -> bool:
-    """Send via Gmail SMTP — works locally; may be blocked on some cloud servers."""
-    import smtplib
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.text import MIMEText
-
-    subject_map = {
-        "registration":   "Verify Your Krishi AI Account",
-        "login":          "Your Krishi AI Sign-In Code",
-        "password_reset": "Reset Your Krishi AI Password",
-    }
-    subject = subject_map.get(purpose, "Your Krishi AI Verification Code")
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"Krishi AI <{gmail_user}>"
-    msg["To"]      = to_email
-    msg.attach(MIMEText(f"Your Krishi AI code: {otp}\nExpires in 10 minutes.", "plain", "utf-8"))
-    msg.attach(MIMEText(_otp_html(otp, purpose), "html", "utf-8"))
-
-    for use_ssl, port in [(True, 465), (False, 587)]:
-        try:
-            if use_ssl:
-                server = smtplib.SMTP_SSL("smtp.gmail.com", port, timeout=25)
-            else:
-                server = smtplib.SMTP("smtp.gmail.com", port, timeout=25)
-                server.ehlo(); server.starttls(); server.ehlo()
-            server.login(gmail_user, gmail_password)
-            server.sendmail(gmail_user, to_email, msg.as_string())
-            server.quit()
-            logger.info(f"[EMAIL] ✅ Gmail delivered OTP to {to_email!r} via port {port}")
-            return True
-        except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"[EMAIL] Gmail auth failed — check GMAIL_APP_PASSWORD: {e}")
-            return False  # Auth error won't fix itself by retrying
-        except Exception as e:
-            logger.warning(f"[EMAIL] Gmail port {port} failed: {e}")
-
-    logger.error("[EMAIL] All Gmail attempts exhausted.")
-    return False
-
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def send_otp_email(to_email: str, otp: str, purpose: str = "registration") -> bool:
     """
-    Send an OTP email. Auto-selects delivery method from env vars:
-      1. RESEND_API_KEY set  → uses Resend HTTP API (recommended for Render)
-      2. GMAIL_USER set      → uses Gmail SMTP
-      3. Neither set         → prints OTP to console (dev mode)
+    Send an OTP email to any recipient.
+
+    Priority:
+      1. Gmail SMTP  — GMAIL_USER + GMAIL_APP_PASSWORD set
+                       ✅ Sends to ANY email address, works on Render free tier
+      2. Resend API  — RESEND_API_KEY set
+                       ⚠️  Shared sender only works for Resend-verified emails
+      3. Console log — dev mode only (no credentials)
     """
-    resend_key   = os.environ.get("RESEND_API_KEY", "").strip()
     gmail_user   = os.environ.get("GMAIL_USER", "").strip()
     gmail_passwd = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
+    resend_key   = os.environ.get("RESEND_API_KEY", "").strip()
 
-    # ── Dev fallback: no credentials configured ───────────────────────────────
-    if not resend_key and not gmail_user:
-        logger.warning(f"[EMAIL DEV] No email credentials set. OTP for {to_email!r}: {otp}")
+    # ── No credentials: dev-mode console fallback ─────────────────────────────
+    if not gmail_user and not resend_key:
+        logger.warning(f"[EMAIL DEV] No credentials set. OTP for {to_email!r}: {otp}")
         print(f"\n{'='*60}")
         print(f"  DEV OTP for {to_email}: {otp}  (purpose={purpose})")
-        print(f"  To enable real emails, set RESEND_API_KEY in Render env vars.")
-        print(f"  Free signup: https://resend.com")
+        print(f"  To send real OTP emails on Render, add these env vars:")
+        print(f"    GMAIL_USER         = yourgmail@gmail.com")
+        print(f"    GMAIL_APP_PASSWORD = <16-char App Password>")
+        print(f"  Get App Password: https://myaccount.google.com/apppasswords")
         print(f"{'='*60}\n")
-        return True  # Don't block dev flow
+        return True  # Don't block local dev
 
     result = [False]
 
     def _worker():
-        # Priority 1: Resend (best for cloud/Render)
-        if resend_key:
-            result[0] = _send_via_resend(to_email, otp, purpose, resend_key)
-            if result[0]:
-                return
-
-        # Priority 2: Gmail SMTP (fallback)
+        # ── Priority 1: Gmail SMTP (any recipient, Render-compatible) ─────────
         if gmail_user and gmail_passwd:
             result[0] = _send_via_gmail(to_email, otp, purpose, gmail_user, gmail_passwd)
+            if result[0]:
+                return
+            logger.warning("[EMAIL] Gmail failed — trying Resend as fallback...")
+
+        # ── Priority 2: Resend fallback (restricted to verified recipients) ───
+        if resend_key:
+            result[0] = _send_via_resend(to_email, otp, purpose, resend_key)
 
     thread = threading.Thread(target=_worker, daemon=True)
     thread.start()
